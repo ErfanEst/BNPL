@@ -51,6 +51,7 @@ object DataReader {
     case x if List("package").contains(x) => readPackage(x, index)
     case x if List("cdr").contains(x) => readCDR(x, index)
     case x if List("user_info").contains(x) => readUserInfo(x, index)
+    case x if List("package_purchase").contains(x) => readPackagePurchase(x, index)
   }
 
   val readUserInfo: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
@@ -82,7 +83,7 @@ object DataReader {
 
   }
 
-  var readCDR: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+  val readCDR: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     println("in the CDR reading table")
     fileType match {
       case "cdr" =>
@@ -92,6 +93,16 @@ object DataReader {
           .withColumn("month_index", lit(index))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .drop("date_key")
+    }
+  }
+
+  val readPackagePurchase: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+    println("in the readPackagePurchase")
+    fileType match {
+      case "package_purchase" =>
+        val packagePurchase = spark.read.parquet(appConfig.getString("Path.PackagePurchase"))
+          .withColumn("month_index", lit(index))
+        packagePurchase
     }
   }
 

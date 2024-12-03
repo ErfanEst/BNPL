@@ -60,4 +60,20 @@ abstract class AbstractAggregator extends AbstractTransformer{
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
   }
 
+  override def transform(dataset: Dataset[_]): DataFrame = {
+    val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
+
+    val nonMonthIndexDependentDf =
+      listProducedGrouped.getOrElse(false, Map())
+        .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
+
+    listProducedGrouped.getOrElse(true, Map())
+      .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
+      .groupBy(nidHash)
+      .pivot(month_index, $(_indices))
+      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
+      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
+  }
+
+
 }

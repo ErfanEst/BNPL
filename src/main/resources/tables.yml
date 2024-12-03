@@ -8,5 +8,9 @@ parquet_tables:
   - name:  "user_info"
     cols : ["dt_batch_id", "create_timestamp", "bib_id", "fake_id", "nid_hash", "contract_type_v", "gender_v", "registration_date_d", "date_of_birth_d", "ability_status", "account_balance", "base_station_cd", "siteid", "date_key"]
 
+  - name:  "package_purchase"
+    cols: ["dt_batch_id", "create_time_stamp", "fake_msisdn", "fake_ic_number", "service_type", "cnt", "amount", "month_id", "source_system_cd"]
+
+
 
 

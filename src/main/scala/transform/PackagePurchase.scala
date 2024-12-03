@@ -1,11 +1,8 @@
 package transform
 
-import core.Core.SourceCol.CDR.{CallDuration, GprsUsage, SMSCount, VoiceCount}
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable}
 import org.apache.spark.sql.Column
-import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.functions.{col, countDistinct, dayofweek, lit, max, min, sum, unix_timestamp, when}
-import utils.Utils.CommonColumns.{dateKey, month_index, nidHash}
+import org.apache.spark.sql.functions.{col, max, min, sum, mean,  when}
 
 object PackagePurchase extends DefaultParamsReadable[PackagePurchase] {
   def apply(): PackagePurchase = new PackagePurchase(Identifiable.randomUID("agg"))
@@ -13,63 +10,35 @@ object PackagePurchase extends DefaultParamsReadable[PackagePurchase] {
 
 class PackagePurchase(override val uid: String) extends AbstractAggregator {
 
-  private val TimeGapSMS = "_time_gap_sms_"
-  private val TimeGapCall = "_time_gap_call_"
-  private val TimeGapGPRS = "_time_gap_gprs_"
-
-  override def aggregator(name: String): Column = name match {
-    case "sms_count" => sum(col(SMSCount).cast("long"))
-    case "voice_count" => sum(col(VoiceCount).cast("long"))
-
-    case "call_duration_sum" => sum(col(CallDuration).cast("long"))
-    case "gprs_usage_sum" => sum(col(GprsUsage).cast("long"))
-
-    case "sms_activedays" => countDistinct(when(col(SMSCount) > 0, col(nidHash)))
-    case "voice_activedays" => countDistinct(when(col(VoiceCount) > 0, col(nidHash)))
-    case "gprs_usage_activedays" => countDistinct(when(col(GprsUsage) > 0, col(nidHash)))
-
-    case "mean_time_interval_sms" => org.apache.spark.sql.functions.mean(col(TimeGapSMS).cast("double"))
-    case "min_time_interval_sms" => org.apache.spark.sql.functions.min(col(TimeGapSMS).cast("long"))
-    case "max_time_interval_sms" => org.apache.spark.sql.functions.max(col(TimeGapSMS).cast("long"))
-
-    case "mean_time_interval_voice" => org.apache.spark.sql.functions.mean(col(TimeGapCall).cast("double"))
-    case "min_time_interval_voice" => min(col(TimeGapCall).cast("long"))
-    case "max_time_interval_voice" => max(col(TimeGapCall).cast("long"))
-
-    case "mean_time_interval_gprs" => org.apache.spark.sql.functions.mean(col(TimeGapGPRS).cast("double"))
-    case "min_time_interval_gprs" => min(col(TimeGapGPRS).cast("long"))
-    case "max_time_interval_gprs" => max(col(TimeGapCall).cast("long"))
-
-    case "sms_sum_weekend" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(SMSCount)).otherwise(0))
-    case "voice_sum_weekend" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(VoiceCount)).otherwise(0))
-    case "call_duration_sum_weekend" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(CallDuration)).otherwise(0))
-    case "ratio_weekend_sms" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(SMSCount))) / sum(col(SMSCount))
-    case "ratio_weekend_voice" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(VoiceCount))) / sum(col(VoiceCount))
-    case "ratio_weekend_call_duration" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(CallDuration))) / sum(col(CallDuration))
+  def aggregator(name: String): Column = name match {
+    case "min_service_cnt_1" => min("cnt")
+    case "max_service_cnt_1" => max("cnt")
+    case "sum_service_cnt_1" => sum("cnt")
+    case "min_service_amount_1" => min("amount")
+    case "max_service_amount_1" => max("amount")
+    case "sum_service_amount_1" => sum("amount")
+    case "avg_Recharge_Money_1" => mean(when(col("service_type") === "Recharge Money", col("amount") / col("cnt")))
+    case "avg_DATA_BOLTON_1" => mean(when(col("service_type") === "DATA_BOLTON", col("amount") / col("cnt")))
+    case "avg_EREFILL_1" => mean(when(col("service_type") === "EREFILL", col("amount") / col("cnt")))
+    case "avg_DATA_BUYABLE_1" => mean(when(col("service_type") === "DATA_BUYABLE", col("amount") / col("cnt")))
+    case "avg_BillPayment_1" => mean(when(col("service_type") === "BillPayment", col("amount") / col("cnt")))
+    case "avg_Pay_Bill_1" => mean(when(col("service_type") === "Pay Bill", col("amount") / col("cnt")))
+    case "avg_TDD_BOLTON_1" => mean(when(col("service_type") === "TDD_BOLTON", col("amount") / col("cnt")))
+    case "binary_Recharge_Money" => max(when(col("service_type") === "Recharge Money", 1).otherwise(0))
+    case "binary_DATA_BOLTON" => max(when(col("service_type") === "DATA_BOLTON", 1).otherwise(0))
+    case "binary_EREFILL" => max(when(col("service_type") === "EREFILL", 1).otherwise(0))
+    case "binary_DATA_BUYABLE" => max(when(col("service_type") === "DATA_BUYABLE", 1).otherwise(0))
+    case "binary_BillPayment" => max(when(col("service_type") === "BillPayment", 1).otherwise(0))
+    case "binary_Pay_Bill" => max(when(col("service_type") === "Pay Bill", 1).otherwise(0))
+    case "binary_TDD_BOLTON" => max(when(col("service_type") === "TDD_BOLTON", 1).otherwise(0))
   }
 
+  def listNeedBeforeTransform: Seq[String] = Seq("cnt", "amount", "service_type")
 
-  override def listNeedBeforeTransform: Seq[String] = Seq(dateKey, SMSCount, CallDuration, GprsUsage)
-
-  override def listProducedBeforeTransform: Seq[(String, Column)] = {
-    val w = Window.partitionBy(nidHash, month_index).orderBy(dateKey)
-    val lagsms = when(col(SMSCount) > lit(0), max(when(col(SMSCount) > lit(0), col(dateKey))).over(w))
-    val lagcall = when(col(CallDuration) > lit(0), max(when(col(CallDuration) > lit(0), col(dateKey))).over(w))
-    val laggprs = when(col(GprsUsage) > lit(0), max(when(col(GprsUsage) > lit(0), col(dateKey))).over(w))
-    val weekday = dayofweek(col(dateKey))
-    val weekdayOrWeekend = when(col("weekday") === 7 || col("weekday") === 1, "weekend").otherwise("weekday")
-
-    Seq(TimeGapSMS -> ((unix_timestamp(col(dateKey)) - unix_timestamp(lagsms))),
-      TimeGapCall -> ((unix_timestamp(col(dateKey)) - unix_timestamp(lagcall))),
-      TimeGapGPRS -> ((unix_timestamp(col(dateKey)) - unix_timestamp(laggprs))),
-      "weekday" -> weekday,
-      "weekday_or_weekend" -> weekdayOrWeekend
+  def listProducedBeforeTransform: Seq[(String, Column)] = {
+    Seq(
+      "amount_per_cnt" -> (col("amount") / col("cnt")),
+      "binary_service_presence" -> when(col("service_type").isNotNull, 1).otherwise(0)
     )
   }
 }

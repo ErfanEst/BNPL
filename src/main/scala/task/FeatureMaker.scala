@@ -25,7 +25,8 @@ object FeatureMaker {
     index = monthIndexOf(input_date)
 
     val indices = index until index - backward by -1
-    val name = "Package"
+    val name = "PackagePurchase"
+
 
     val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
     println(outputColumns)
@@ -39,17 +40,14 @@ object FeatureMaker {
     }
 
     // Show the combined DataFrame (optional)
-    combinedDataFrame.show(15)
 
-    val result = fillNullValue(combinedDataFrame)
+
+//    val result = fillNullValue(combinedDataFrame)
 
 //     Write the combined DataFrame to a Parquet file
-    result.write.mode("overwrite").parquet(s"/home/erfan/parquet_test/scala_features/${name}Test")
+//    combinedDataFrame.write.mode("overwrite").parquet(s"/home/erfan/parquet_test/scala_features/${name}Test")
 
-
-//    aggregate(name = "Package", indices = indices, outputColumns = outputColumns, index = index).foreach{
-//      df => df.show(10)
-//    }
+    combinedDataFrame.show(truncate = true)
   }
 
 

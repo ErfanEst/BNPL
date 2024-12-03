@@ -13,6 +13,7 @@ object Aggregate {
     case "Package" => Package()
     case "CDR" => CDR()
     case "UserInfo" => UserInfo()
+    case "PackagePurchase" => PackagePurchase()
   }
 
   def aggregate(
@@ -49,12 +50,22 @@ object Aggregate {
     source.show(20)
     println("This is the source data")
 
-    outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
-      aggregator
-        .copy(ParamMap.empty).asInstanceOf[AbstractAggregator]
-        .setRange(range)
-        .setOutputColumns(cols.toArray)
-        .transform(source)
+    name match {
+      case "PackagePurchase" => outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
+        aggregator
+          .copy(ParamMap.empty).asInstanceOf[AbstractAggregator]
+          .setRange(range)
+          .setOutputColumns(cols.toArray)
+          .transformPackagePurchase(source)
+      case _ => outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
+        aggregator
+          .copy(ParamMap.empty).asInstanceOf[AbstractAggregator]
+          .setRange(range)
+          .setOutputColumns(cols.toArray)
+          .transform(source)
+      }
+
+      }
     }
   }
 }

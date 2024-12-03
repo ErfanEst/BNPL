@@ -9,6 +9,8 @@ aggregation:
       sum_offer_amount: [1]
       ratio_offeramount_zero: [1]
       sum_data_MB: [1]
+      gb_sum: [1]
+      mb_sum: [1]
       mean_package_period: [1]
       max_package_period: [1]
       min_package_period: [1]
@@ -17,13 +19,17 @@ aggregation:
   - name: CDR
     tables: ["cdr"]
     features:
+
       sms_count: [1]
       voice_count: [1]
+
       call_duration_sum: [1]
       gprs_usage_sum: [1]
+
       sms_activedays: [1]
       voice_activedays: [1]
       gprs_usage_activedays: [1]
+
       mean_time_interval_voice: [1]
       min_time_interval_voice: [1]
       max_time_interval_voice: [1]
@@ -33,12 +39,15 @@ aggregation:
       mean_time_interval_gprs: [1]
       min_time_interval_gprs: [1]
       max_time_interval_gprs: [1]
+
       sms_sum_weekend: [1]
       voice_sum_weekend: [1]
       call_duration_sum_weekend: [1]
+
       ratio_weekend_sms: [1]
       ratio_weekend_call_duration: [1]
       ratio_weekend_voice: [1]
+      ratio_weekend_gprs_usage: [1]
 
   - name: UserInfo
     tables: ["user_info"]
@@ -51,6 +60,31 @@ aggregation:
       mean_account_balance: [1]
       max_account_balance: [1]
       min_account_balance: [1]
+
+  - name: PackagePurchase
+    tables: ["package_purchase"]
+    features:
+      min_service_cnt_1: [1]
+      max_service_cnt_1: [1]
+      sum_service_cnt_1: [1]
+      min_service_amount_1: [1]
+      max_service_amount_1: [1]
+      sum_service_amount_1: [1]
+      avg_Recharge_Money_1: [1]
+      avg_DATA_BOLTON_1: [1]
+      avg_EREFILL_1: [1]
+      avg_DATA_BUYABLE_1: [1]
+      avg_BillPayment_1: [1]
+      avg_Pay_Bill_1: [1]
+      avg_TDD_BOLTON_1: [1]
+      binary_Recharge_Money: [1]
+      binary_DATA_BOLTON: [1]
+      binary_EREFILL: [1]
+      binary_DATA_BUYABLE: [1]
+      binary_BillPayment: [1]
+      binary_Pay_Bill: [1]
+      binary_TDD_BOLTON: [1]
+
 
 
 

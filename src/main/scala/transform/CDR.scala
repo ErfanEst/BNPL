@@ -9,7 +9,6 @@ import org.apache.spark.sql.functions._
 
 import utils.Utils.CommonColumns.{dateKey, month_index, nidHash}
 
-
 object CDR extends DefaultParamsReadable[CDR] {
   def apply(): CDR = new CDR(Identifiable.randomUID("agg"))
 }
@@ -24,37 +23,46 @@ class CDR(override val uid: String) extends AbstractAggregator {
     case "sms_count" => sum(col(SMSCount).cast("long"))
     case "voice_count" => sum(col(VoiceCount).cast("long"))
 
-    case "call_duration_sum" => sum(col(CallDuration).cast("long"))
-    case "gprs_usage_sum" => sum(col(GprsUsage).cast("long"))
+    case "call_duration_sum" => sum(col(CallDuration).cast("double"))
+    case "gprs_usage_sum" => sum(col(GprsUsage).cast("double"))
 
-    case "sms_activedays" => countDistinct(when(col(SMSCount) > 0, col(nidHash)))
-    case "voice_activedays" => countDistinct(when(col(VoiceCount) > 0, col(nidHash)))
-    case "gprs_usage_activedays" => countDistinct(when(col(GprsUsage) > 0, col(nidHash)))
+    case "sms_activedays" => countDistinct(when(col(SMSCount) > 0, col(nidHash))).cast("double")
+    case "voice_activedays" => countDistinct(when(col(VoiceCount) > 0, col(nidHash))).cast("double")
+    case "gprs_usage_activedays" => countDistinct(when(col(GprsUsage) > 0, col(nidHash))).cast("double")
 
-    case "mean_time_interval_sms" => org.apache.spark.sql.functions.mean(col(TimeGapSMS).cast("double"))
-    case "min_time_interval_sms" => org.apache.spark.sql.functions.min(col(TimeGapSMS).cast("long"))
-    case "max_time_interval_sms" => org.apache.spark.sql.functions.max(col(TimeGapSMS).cast("long"))
+    case "mean_time_interval_sms" => org.apache.spark.sql.functions.mean(col(TimeGapSMS)).cast("double")
+    case "min_time_interval_sms" => org.apache.spark.sql.functions.min(col(TimeGapSMS)).cast("long")
+    case "max_time_interval_sms" => org.apache.spark.sql.functions.max(col(TimeGapSMS)).cast("long")
 
-    case "mean_time_interval_voice" => org.apache.spark.sql.functions.mean(col(TimeGapCall).cast("double"))
-    case "min_time_interval_voice" => min(col(TimeGapCall).cast("long"))
-    case "max_time_interval_voice" => max(col(TimeGapCall).cast("long"))
+    case "mean_time_interval_voice" => org.apache.spark.sql.functions.mean(col(TimeGapCall)).cast("double")
+    case "min_time_interval_voice" => min(col(TimeGapCall)).cast("long")
+    case "max_time_interval_voice" => max(col(TimeGapCall)).cast("long")
 
-    case "mean_time_interval_gprs" => org.apache.spark.sql.functions.mean(col(TimeGapGPRS).cast("double"))
-    case "min_time_interval_gprs" => min(col(TimeGapGPRS).cast("long"))
-    case "max_time_interval_gprs" => max(col(TimeGapCall).cast("long"))
+    case "mean_time_interval_gprs" => org.apache.spark.sql.functions.mean(col(TimeGapGPRS)).cast("double")
+    case "min_time_interval_gprs" => min(col(TimeGapGPRS)).cast("long")
+    case "max_time_interval_gprs" => max(col(TimeGapCall)).cast("long")
 
     case "sms_sum_weekend" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(SMSCount)).otherwise(0))
+      sum(when(col("weekday_or_weekend") === "weekend", col(SMSCount)))
     case "voice_sum_weekend" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(VoiceCount)).otherwise(0))
+      sum(when(col("weekday_or_weekend") === "weekend", col(VoiceCount)))
     case "call_duration_sum_weekend" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(CallDuration)).otherwise(0))
+      sum(when(col("weekday_or_weekend") === "weekend", col(CallDuration)))
+    case "gprs_usag_sum_weekend" =>
+      sum(when(col("weekday_or_weekend") === "weekend", col(GprsUsage)))
     case "ratio_weekend_sms" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(SMSCount))) / sum(col(SMSCount))
+      sum(when(col("weekday_or_weekend") === "weekend", col(SMSCount))) /
+        sum(col(SMSCount))
     case "ratio_weekend_voice" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(VoiceCount))) / sum(col(VoiceCount))
+      sum(when(col("weekday_or_weekend") === "weekend", col(VoiceCount))) /
+        sum(col(VoiceCount))
     case "ratio_weekend_call_duration" =>
-      sum(when(col("weekday_or_weekend") === "weekend", col(CallDuration))) / sum(col(CallDuration))
+      sum(when(col("weekday_or_weekend") === "weekend", col(CallDuration))) /
+        sum(col(CallDuration))
+    case "ratio_weekend_gprs_usage" =>
+      sum(when(col("weekday_or_weekend") === "weekend", col(GprsUsage))) /
+        sum(col(GprsUsage))
+
   }
 
 
