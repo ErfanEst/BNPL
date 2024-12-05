@@ -14,6 +14,8 @@ object Aggregate {
     case "CDR" => CDR()
     case "UserInfo" => UserInfo()
     case "PackagePurchase" => PackagePurchase()
+    case "HandsetPrice" => HandsetPrice()
+    case "Arpu" => Arpu()
   }
 
   def aggregate(
@@ -44,6 +46,9 @@ object Aggregate {
 
     val source =
       name match {
+        case "PackagePurchase" => selectCols(setTimeRange(selectReader(name, featureTableMap, index))(indices, maxRange))(allNeededCols ++ Seq("fake_ic_number"))
+        case "HandsetPrice" => selectCols(setTimeRange(selectReader(name, featureTableMap, index))(indices, maxRange))(allNeededCols ++ Seq("fake_ic_number"))
+        case "Arpu" => selectCols(setTimeRange(selectReader(name, featureTableMap, index))(indices, maxRange))(allNeededCols ++ Seq("fake_ic_number"))
         case _ => selectCols(setTimeRange(selectReader(name, featureTableMap, index))(indices, maxRange))(allNeededCols ++ Seq(nidHash))
       }
 
@@ -51,21 +56,48 @@ object Aggregate {
     println("This is the source data")
 
     name match {
-      case "PackagePurchase" => outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
-        aggregator
-          .copy(ParamMap.empty).asInstanceOf[AbstractAggregator]
-          .setRange(range)
-          .setOutputColumns(cols.toArray)
-          .transformPackagePurchase(source)
-      case _ => outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
-        aggregator
-          .copy(ParamMap.empty).asInstanceOf[AbstractAggregator]
-          .setRange(range)
-          .setOutputColumns(cols.toArray)
-          .transform(source)
-      }
 
-      }
+      case "PackagePurchase" =>
+        outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
+          aggregator
+            .copy(ParamMap.empty)
+            .asInstanceOf[AbstractAggregator]
+            .setRange(range)
+            .setOutputColumns(cols.toArray)
+            .selectTransform(name, source)
+        }
+
+      case "Arpu" =>
+        println("In the arpu")
+        outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
+          aggregator
+            .copy(ParamMap.empty)
+            .asInstanceOf[AbstractAggregator]
+            .setRange(range)
+            .setOutputColumns(cols.toArray)
+            .selectTransform(name, source)
+        }
+
+      case "HandsetPrice" =>
+        outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
+          aggregator
+            .copy(ParamMap.empty)
+            .asInstanceOf[AbstractAggregator]
+            .setRange(range)
+            .setOutputColumns(cols.toArray)
+            .selectTransform(name, source)
+        }
+
+      case _ =>
+        outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
+          aggregator
+            .copy(ParamMap.empty)
+            .asInstanceOf[AbstractAggregator]
+            .setRange(range)
+            .setOutputColumns(cols.toArray)
+            .selectTransform(name, source)
+        }
     }
+
   }
 }

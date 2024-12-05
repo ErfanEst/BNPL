@@ -4,13 +4,11 @@ aggregation:
     tables: ["package"]
     features:
       count_distinct_offercode: [1]
-      count_distinct_offername: [1, 2]
+      count_distinct_offername: [1]
       count_packages: [1]
       sum_offer_amount: [1]
       ratio_offeramount_zero: [1]
       sum_data_MB: [1]
-      gb_sum: [1]
-      mb_sum: [1]
       mean_package_period: [1]
       max_package_period: [1]
       min_package_period: [1]
@@ -64,27 +62,43 @@ aggregation:
   - name: PackagePurchase
     tables: ["package_purchase"]
     features:
-      min_service_cnt_1: [1]
-      max_service_cnt_1: [1]
-      sum_service_cnt_1: [1]
-      min_service_amount_1: [1]
-      max_service_amount_1: [1]
-      sum_service_amount_1: [1]
-      avg_Recharge_Money_1: [1]
-      avg_DATA_BOLTON_1: [1]
-      avg_EREFILL_1: [1]
-      avg_DATA_BUYABLE_1: [1]
-      avg_BillPayment_1: [1]
-      avg_Pay_Bill_1: [1]
-      avg_TDD_BOLTON_1: [1]
-      binary_Recharge_Money: [1]
-      binary_DATA_BOLTON: [1]
-      binary_EREFILL: [1]
-      binary_DATA_BUYABLE: [1]
-      binary_BillPayment: [1]
-      binary_Pay_Bill: [1]
-      binary_TDD_BOLTON: [1]
+      min_service_cnt: [1]
+      max_service_cnt: [1]
+      sum_service_cnt: [1]
+      min_service_amount: [1]
+      max_service_amount: [1]
+      sum_service_amount: [1]
+      avg_Recharge_Money: [1]
+      avg_DATA_BOLTON: [1]
+      avg_EREFILL: [1]
+      avg_DATA_BUYABLE: [1]
+      avg_BillPayment: [1]
+      avg_Pay_Bill: [1]
+      avg_TDD_BOLTON: [1]
+      service_v[0]: [1]
+      service_v[1]: [1]
+      service_v[2]: [1]
+      service_v[3]: [1]
+      service_v[4]: [1]
+      service_v[5]: [1]
+      service_v[6]: [1]
 
+  - name: Arpu
+    tables: ["arpu"]
+    features:
+      avg_res_com_score: [1]
+      avg_voice_revenue: [1]
+      avg_gprs_revenue: [1]
+      avg_sms_revenue: [1]
+      avg_subscription_revenue: [1]
+      count_active_fake_msisdn: [1]
+      age: [1]
+
+
+  - name: HandsetPrice
+    tables: ["handset_price"]
+    features:
+      handset_onehot_vector: [1]
 
 
 

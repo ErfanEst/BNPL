@@ -11,6 +11,13 @@ parquet_tables:
   - name:  "package_purchase"
     cols: ["dt_batch_id", "create_time_stamp", "fake_msisdn", "fake_ic_number", "service_type", "cnt", "amount", "month_id", "source_system_cd"]
 
+  - name: "handset_price"
+    cols: [ "dt_batch_id", "create_time_stamp", "fake_msisdn", "fake_ic_number", "handset_model", "handset_brand", "handset_type", "cnt_of_days", "month_id"]
+
+  - name: "arpu"
+    cols: ["dt_batch_id", "create_timestamp", "month_id", "fake_msisdn", "fake_ic_number", "contract_type", "registration_date", "gender", "age", "modem_model", "flag_sim_tier", "site_id", "site_type", "res_com_score", "voice_revenue", "gprs_revenue", "sms_revenue", "subscription_revenue", "date_key"]
+
+
 
 
 

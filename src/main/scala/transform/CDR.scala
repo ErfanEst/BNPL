@@ -70,17 +70,21 @@ class CDR(override val uid: String) extends AbstractAggregator {
 
   override def listProducedBeforeTransform: Seq[(String, Column)] = {
     val w = Window.partitionBy(nidHash, month_index).orderBy(dateKey)
-    val lagsms = when(col(SMSCount) > lit(0), max(when(col(SMSCount) > lit(0), col(dateKey))).over(w))
-    val lagcall = when(col(CallDuration) > lit(0), max(when(col(CallDuration) > lit(0), col(dateKey))).over(w))
-    val laggprs = when(col(GprsUsage) > lit(0), max(when(col(GprsUsage) > lit(0), col(dateKey))).over(w))
-    val weekday = dayofweek(col(dateKey))
-    val weekdayOrWeekend = when(col("weekday") === 7 || col("weekday") === 1, "weekend").otherwise("weekday")
 
-    Seq(TimeGapSMS -> ((unix_timestamp(col(dateKey)) - unix_timestamp(lagsms))),
-      TimeGapCall -> ((unix_timestamp(col(dateKey)) - unix_timestamp(lagcall))),
-      TimeGapGPRS -> ((unix_timestamp(col(dateKey)) - unix_timestamp(laggprs))),
+    val lagsms = when(col(SMSCount) > lit(0), lag(col(dateKey), 1).over(w))
+    val lagcall = when(col(CallDuration) > lit(0), lag(col(dateKey), 1).over(w))
+    val laggprs = when(col(GprsUsage) > lit(0), lag(col(dateKey), 1).over(w))
+
+    val weekday = dayofweek(col(dateKey))
+    val weekdayOrWeekend = when(weekday === 5 || weekday === 6, "weekend").otherwise("weekday")
+
+    Seq(
+      TimeGapSMS -> (unix_timestamp(col(dateKey)) - unix_timestamp(lagsms)),
+      TimeGapCall -> (unix_timestamp(col(dateKey)) - unix_timestamp(lagcall)),
+      TimeGapGPRS -> (unix_timestamp(col(dateKey)) - unix_timestamp(laggprs)),
       "weekday" -> weekday,
       "weekday_or_weekend" -> weekdayOrWeekend
     )
   }
+
 }

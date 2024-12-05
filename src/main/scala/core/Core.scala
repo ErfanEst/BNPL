@@ -4,12 +4,18 @@ package core
 import com.typesafe.config.{Config, ConfigFactory}
 import net.jcazevedo.moultingyaml.DefaultYamlProtocol._
 import net.jcazevedo.moultingyaml._
+import org.apache.spark.ml.feature.CountVectorizerModel
+import org.apache.spark.sql.DataFrame
 
 import scala.io.Source
 
 object Core {
 
   val appConfig: Config = ConfigFactory.load
+
+  val cvm: CountVectorizerModel = new CountVectorizerModel(Array("SAMSUNG", "XIAOMI", "HUAWEI", "APPLE", "Other"))
+    .setInputCol("handset_names")
+    .setOutputCol("handsetVec")
 
   implicit private val yamlTablesFormat: YamlFormat[YamlTableData] = yamlFormat2(YamlTableData)
 
@@ -79,6 +85,12 @@ object Core {
       val OfferingName: String = conf(7)
       val ActivationDate: String = "a_date"
       val DeactivationDate: String = "de_a_date"
+    }
+
+    object Arpu {
+      var flagSimTierMode: DataFrame = _
+      var genderMode: DataFrame = _
+      var siteTypeMode: DataFrame = _
     }
   }
 }
