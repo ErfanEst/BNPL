@@ -62,9 +62,7 @@ class CDR(override val uid: String) extends AbstractAggregator {
     case "ratio_weekend_gprs_usage" =>
       sum(when(col("weekday_or_weekend") === "weekend", col(GprsUsage))) /
         sum(col(GprsUsage))
-
   }
-
 
   override def listNeedBeforeTransform: Seq[String] = Seq(dateKey, SMSCount, CallDuration, GprsUsage)
 
