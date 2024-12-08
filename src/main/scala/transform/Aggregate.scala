@@ -26,13 +26,9 @@ object Aggregate {
                )
   : Seq[DataFrame] = {
 
-    println("in the aggregate")
-
     val maxRange: Int = outputColumns.keys.max
 
     val allOutputCols: Array[String] = outputColumns.values.flatten.toArray.distinct
-
-    println("all output columns are :" + allOutputCols.mkString("Array(", ", ", ")"))
 
     val aggregator: AbstractAggregator = selectAggregator(name)
 
@@ -42,62 +38,96 @@ object Aggregate {
       .setOutputColumns(allOutputCols)
       .getInputColumns
 
-    println("all Needed Cols are :" + allNeededCols)
+    def getSource(name: String, featureTableMap: Map[String, List[String]], index: Int, indices: Seq[Int], maxRange: Int, allNeededCols: Seq[String], nidHash: String): DataFrame = {
+      println("name is:" + name)
+      println("featureTableMap is:" + featureTableMap)
+      println("index is:" + index)
+      println("indices is:" + indices)
+      println("maxRange is:" + maxRange)
+      println("allNeededCols is:" + allNeededCols)
 
-    val source =
-      name match {
-        case "PackagePurchase" => selectCols(setTimeRange(selectReader(name, featureTableMap, index))(indices, maxRange))(allNeededCols ++ Seq("fake_ic_number"))
-        case "HandsetPrice" => selectCols(setTimeRange(selectReader(name, featureTableMap, index))(indices, maxRange))(allNeededCols ++ Seq("fake_ic_number"))
-        case "Arpu" => selectCols(setTimeRange(selectReader(name, featureTableMap, index))(indices, maxRange))(allNeededCols ++ Seq("fake_ic_number"))
-        case _ => selectCols(setTimeRange(selectReader(name, featureTableMap, index))(indices, maxRange))(allNeededCols ++ Seq(nidHash))
-      }
-
-    source.show(20)
-    println("This is the source data")
-
-    name match {
-
-      case "PackagePurchase" =>
-        outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
-          aggregator
-            .copy(ParamMap.empty)
-            .asInstanceOf[AbstractAggregator]
-            .setRange(range)
-            .setOutputColumns(cols.toArray)
-            .selectTransform(name, source)
-        }
-
-      case "Arpu" =>
-        println("In the arpu")
-        outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
-          aggregator
-            .copy(ParamMap.empty)
-            .asInstanceOf[AbstractAggregator]
-            .setRange(range)
-            .setOutputColumns(cols.toArray)
-            .selectTransform(name, source)
-        }
-
-      case "HandsetPrice" =>
-        outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
-          aggregator
-            .copy(ParamMap.empty)
-            .asInstanceOf[AbstractAggregator]
-            .setRange(range)
-            .setOutputColumns(cols.toArray)
-            .selectTransform(name, source)
-        }
-
-      case _ =>
-        outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
-          aggregator
-            .copy(ParamMap.empty)
-            .asInstanceOf[AbstractAggregator]
-            .setRange(range)
-            .setOutputColumns(cols.toArray)
-            .selectTransform(name, source)
-        }
+      val commonCols = allNeededCols ++ Seq(if (name == "PackagePurchase" || name == "HandsetPrice" || name == "Arpu") "fake_ic_number" else nidHash)
+      val reader = selectReader(name, featureTableMap, index)
+      selectCols(setTimeRange(reader)(indices, maxRange))(commonCols)
     }
 
+    def transformOutput(
+                         name: String,
+                         source: DataFrame,
+                         outputColumns: Map[Int, Seq[String]],
+                         aggregator: AbstractAggregator
+                       ): Seq[DataFrame] = {
+      outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
+        aggregator
+          .copy(ParamMap.empty)
+          .asInstanceOf[AbstractAggregator]
+          .setRange(range)
+          .setOutputColumns(cols.toArray)
+          .selectTransform(name, source)
+      }
+    }
+
+    // Main logic
+    val source = getSource(name, featureTableMap, index, indices, maxRange, allNeededCols, nidHash)
+    val result = transformOutput(name, source, outputColumns, aggregator)
+    result
   }
+
+
+//  def aggregate2(
+//                 name: String,
+//                 indices: Seq[Int],
+//                 outputColumns: List[String],
+//                 range: Int,
+//                 index: Int
+//               )
+//  : Seq[DataFrame] = {
+//
+//    val maxRange: Int = range
+//
+//    val allOutputCols: Array[String] = outputColumns.values.flatten.toArray.distinct
+//
+//    val aggregator: AbstractAggregator = selectAggregator(name)
+//
+//    val allNeededCols: Seq[String] = aggregator
+//      .setRange(maxRange)
+//      .setMonthIndices(indices)
+//      .setOutputColumns(allOutputCols)
+//      .getInputColumns
+//
+//    def getSource(name: String, featureTableMap: Map[String, List[String]], index: Int, indices: Seq[Int], maxRange: Int, allNeededCols: Seq[String], nidHash: String): DataFrame = {
+//
+//      println("name is:" + name)
+//      println("featureTableMap is:" + featureTableMap)
+//      println("index is:" + index)
+//      println("indices is:" + indices)
+//      println("maxRange is:" + maxRange)
+//      println("allNeededCols is:" + allNeededCols)
+//
+//      val commonCols = allNeededCols ++ Seq(if (name == "PackagePurchase" || name == "HandsetPrice" || name == "Arpu") "fake_ic_number" else nidHash)
+//      val reader = selectReader(name, featureTableMap, index)
+//      selectCols(setTimeRange(reader)(indices, maxRange))(commonCols)
+//    }
+//
+//    def transformOutput(
+//                         name: String,
+//                         source: DataFrame,
+//                         outputColumns: Map[Int, Seq[String]],
+//                         aggregator: AbstractAggregator
+//                       ): Seq[DataFrame] = {
+//      outputColumns.toSeq.sortBy(_._1).map { case (range, cols) =>
+//        aggregator
+//          .copy(ParamMap.empty)
+//          .asInstanceOf[AbstractAggregator]
+//          .setRange(range)
+//          .setOutputColumns(cols.toArray)
+//          .selectTransform(name, source)
+//      }
+//    }
+//
+//    // Main logic
+//    val source = getSource(name, featureTableMap, index, indices, maxRange, allNeededCols, nidHash)
+//    val result = transformOutput(name, source, outputColumns, aggregator)
+//    result
+
 }

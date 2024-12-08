@@ -19,6 +19,7 @@ abstract class AbstractTransformer extends Transformer with HasOutputCols with D
 
   val _indices = new IntArrayParam(this, "month_indices", "")
 
+//  def setMonthIndices(value: Seq[Int]): AbstractTransformer = set(_indices, value.toArray)
   def setMonthIndices(value: Seq[Int]): AbstractTransformer = set(_indices, value.toArray)
   /**
    * Sets the desired output columns.

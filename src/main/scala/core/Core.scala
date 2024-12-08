@@ -5,13 +5,21 @@ import com.typesafe.config.{Config, ConfigFactory}
 import net.jcazevedo.moultingyaml.DefaultYamlProtocol._
 import net.jcazevedo.moultingyaml._
 import org.apache.spark.ml.feature.CountVectorizerModel
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.rogach.scallop.{ScallopConf, ScallopOption}
 
 import scala.io.Source
 
 object Core {
 
   val appConfig: Config = ConfigFactory.load
+  var size : Int = _
+  lazy val spark: SparkSession = SparkSession.builder
+    .appName(appConfig.getString("spark.appName"))
+    .master(appConfig.getString("spark.master")) // Use all cores to match your system capacity while leaving 2 cores free for the OS
+    .config("spark.executor.memory", appConfig.getString("spark.executorMemory")) // 16GB memory for each executor
+    .config("spark.driver.memory", appConfig.getString("spark.driverMemory")) // 16GB memory for the driver
+    .getOrCreate
 
   val cvm: CountVectorizerModel = new CountVectorizerModel(Array("SAMSUNG", "XIAOMI", "HUAWEI", "APPLE", "Other"))
     .setInputCol("handset_names")
@@ -68,10 +76,10 @@ object Core {
     object CDR {
       private val conf = columnsExtractor("cdr")
       val IsWeekend = "_is_weekend_"
-      val SMSCount = conf(4)
-      val VoiceCount = conf(5)
-      val CallDuration = conf(6)
-      val GprsUsage = conf(7)
+      val SMSCount: String = conf(4)
+      val VoiceCount: String = conf(5)
+      val CallDuration: String = conf(6)
+      val GprsUsage: String = conf(7)
       val IsActiveSMS = "isActiveSMS"
       val IsActiveCall = "isActiveCall"
       val IsActiveGPRS = "isActiveGPRS"
@@ -92,5 +100,21 @@ object Core {
       var genderMode: DataFrame = _
       var siteTypeMode: DataFrame = _
     }
+  }
+
+  class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
+    banner(
+      """
+          Input needed datas:
+          --date-- Your desired timeframe for obtaining the features
+          --name-- The desired feature name based on the dataset
+          --backward-- Time decrements for calculating the desired features
+          """.stripMargin)
+
+    val date: ScallopOption[String] = opt[String](required = true, descr = "Date in the format yyyy-MM-dd")
+    val name: ScallopOption[String] = opt[String](required = true, descr = "Name of the aggregation")
+    val backward: ScallopOption[Int] = opt[Int](required = false, default = Some(1), descr = "Range")
+
+    verify()
   }
 }

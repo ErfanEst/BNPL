@@ -18,15 +18,15 @@ aggregation:
     tables: ["cdr"]
     features:
 
-      sms_count: [1]
-      voice_count: [1]
+      sms_count: [1, 2]
+      voice_count: [1,2]
 
-      call_duration_sum: [1]
-      gprs_usage_sum: [1]
+      call_duration_sum: [1, 2]
+      gprs_usage_sum: [1, 2]
 
-      sms_activedays: [1]
-      voice_activedays: [1]
-      gprs_usage_activedays: [1]
+      sms_activedays: [1, 2]
+      voice_activedays: [1, 2]
+      gprs_usage_activedays: [1, 2]
 
       mean_time_interval_voice: [1]
       min_time_interval_voice: [1]

@@ -1,19 +1,15 @@
 package transform
 
+import core.Core
 import core.Core.SourceCol.Arpu.{flagSimTierMode, genderMode, siteTypeMode}
 import core.Core.{IndexedColumn, RangedCol, cvm}
-import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.{Column, DataFrame, Dataset}
 import org.apache.spark.sql.functions.{col, expr, lit}
 import utils.Utils.CommonColumns.{month_index, nidHash}
 import utils.Utils.getLeafNeededColumns
-import org.apache.commons.math3.stat.descriptive.rank.Percentile
-import org.apache.commons.math3.stat.regression.SimpleRegression
-import org.apache.spark.ml.feature.CountVectorizerModel
 import org.apache.spark.ml.param.IntParam
-import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{Column, DataFrame, Dataset, functions}
+import org.apache.spark.sql.functions
 
 abstract class AbstractAggregator extends AbstractTransformer{
 
@@ -63,12 +59,14 @@ abstract class AbstractAggregator extends AbstractTransformer{
       listProducedGrouped.getOrElse(false, Map())
         .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
 
-    listProducedGrouped.getOrElse(true, Map())
-      .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-      .groupBy(nidHash)
-      .pivot(month_index, $(_indices))
-      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
-      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
+
+    val a = listProducedGrouped.getOrElse(true, Map())
+    val b = a.foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
+    val c = b.groupBy(nidHash)
+    val d = c.pivot(month_index, $(_indices))
+    val e = d.agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
+    val f = e.drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
+      f
   }
   /** Second transformation logic */
   def transformPackagePurchase(dataset: Dataset[_]): DataFrame = {
@@ -89,7 +87,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
   def transformArpu(dataset: Dataset[_]): DataFrame = {
 
     println("in the transformArpu")
-    dataset.show(truncate = false)
 
     val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
 
@@ -104,10 +101,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
       .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
 
-    tempDf.show(20, truncate = false)
-    println("in transformArpu....")
-    Thread.sleep(5000)
-
     val arpuCustomerWithJoins = tempDf
       .join(siteTypeMode, Seq("fake_ic_number"), "left")
       .join(flagSimTierMode, Seq("fake_ic_number"), "left")
@@ -115,7 +108,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
 
     arpuCustomerWithJoins.show(20, truncate = false)
     println("in transformArpu point 2....")
-    Thread.sleep(5000)
 
     val columnName = arpuCustomerWithJoins.columns.find(_.contains("count_active_fake_msisdn")).getOrElse(
       throw new IllegalArgumentException("No column containing 'count_active_fake_msisdn' found")
@@ -125,41 +117,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
 
     arpuCustomerFiltered.show(20, truncate = false)
     println("in transformArpu point 3....")
-    Thread.sleep(5000)
-
-//    val filledCustomerMetrics = arpuCustomerFiltered
-//      .withColumn(
-//        "age",
-//        when(col("age").isNull, lit(averageAge)).otherwise(col("age"))
-//      )
-//      .withColumn(
-//        "gender",
-//        when(col("gender").isNull, lit(mostFrequentGender)).otherwise(col("gender"))
-//      )
-//      .withColumn(
-//        "avg_res_com_score",
-//        when(col("avg_res_com_score").isNull, lit(0)).otherwise(col("avg_res_com_score"))
-//      )
-//      .withColumn(
-//        "avg_voice_revenue",
-//        when(col("avg_voice_revenue").isNull, lit(0)).otherwise(col("avg_voice_revenue"))
-//      )
-//      .withColumn(
-//        "avg_gprs_revenue",
-//        when(col("avg_gprs_revenue").isNull, lit(0)).otherwise(col("avg_gprs_revenue"))
-//      )
-//      .withColumn(
-//        "avg_sms_revenue",
-//        when(col("avg_sms_revenue").isNull, lit(0)).otherwise(col("avg_sms_revenue"))
-//      )
-//      .withColumn(
-//        "avg_subscription_revenue",
-//        when(col("avg_subscription_revenue").isNull, lit(0)).otherwise(col("avg_subscription_revenue"))
-//      )
-//      .withColumn(
-//        "flag_sim_tier_mode",
-//        when(col("flag_sim_tier_mode").isNull, lit(mostFrequentFlagSimTier)).otherwise(col("flag_sim_tier_mode"))
-//      )
 
     arpuCustomerFiltered
   }
@@ -177,7 +134,7 @@ abstract class AbstractAggregator extends AbstractTransformer{
       .pivot(month_index, $(_indices))
       .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
-    listProducedGrouped
+
     val featuredDf = cvm.transform(result).drop("handset_names")
     val numBrands = 5 // Number of top brands + 1 for "Other"
     val resultDf = featuredDf.withColumn("handset_v", expr("vector_to_array(handsetVec)"))
