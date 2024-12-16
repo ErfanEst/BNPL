@@ -5,7 +5,6 @@ import core.Core.{appConfig, spark}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.{col, expr, lit, to_date, to_timestamp, unix_timestamp}
 import org.apache.spark.sql.types.IntegerType
 import task.FeatureMaker.index
@@ -13,12 +12,8 @@ import utils.Utils.CommonColumns.{month_index, nidHash}
 import utils.Utils.monthIndexOf
 
 object DataReader {
-
-  val selectReader: (String, Map[String, List[String]], Int) => DataFrame = {
-    (name: String, featureTableMap: Map[String, List[String]], index: Int) =>
-      val tableName = featureTableMap(name).head
-      if (readTable.isDefinedAt(tableName)) readTable(tableName) else throw new IllegalArgumentException(s"Unknown table: $tableName")
-  }
+  val selectReader: (String, Map[String, List[String]]) => DataFrame =
+    (name: String, featureTableMap: Map[String, List[String]]) => readTable(featureTableMap(name).head)
 
   def selectCols(dataFrame: DataFrame)(cols: Seq[String]): DataFrame = {
     val df = dataFrame
@@ -67,12 +62,11 @@ object DataReader {
     fileType match {
       case "cdr" =>
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-
         spark.read.parquet(appConfig.getString("Path.CDR"))
           .filter(col(nidHash).isNotNull)
-          .repartition(300)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
-          .withColumn("month_index", monthIndexOfUDF(col("date").cast("string")))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
+          .repartition(300)
           .drop("date_key")
     }
   }
@@ -130,7 +124,8 @@ object DataReader {
     }
   }
 
-  def setTimeRange(dataFrame: DataFrame)(indices: Seq[Int], range: Int): DataFrame = {
+
+  def setTimeRange(dataFrame: DataFrame)(indices: Seq[Int], range: Int = 0): DataFrame = {
     dataFrame
       .where(col(month_index) > indices.min - range).where(col(month_index) <= indices.max)
   }

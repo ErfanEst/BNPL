@@ -32,6 +32,7 @@ abstract class AbstractAggregator extends AbstractTransformer{
     $(outputCols).map(column => aggregator(column) as RangedCol(column, $(_range)))
 
   protected def explodeForIndices(dataFrame: DataFrame): DataFrame = {
+    println($(_indices).min, $(_indices).max, $(_indices).length)
     if ($(_indices).length == 1) {
       val monthIndex = $(_indices).head
       dataFrame
@@ -59,14 +60,12 @@ abstract class AbstractAggregator extends AbstractTransformer{
       listProducedGrouped.getOrElse(false, Map())
         .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
 
-
-    val a = listProducedGrouped.getOrElse(true, Map())
-    val b = a.foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-    val c = b.groupBy(nidHash)
-    val d = c.pivot(month_index, $(_indices))
-    val e = d.agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
-    val f = e.drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
-      f
+    listProducedGrouped.getOrElse(true, Map())
+      .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
+      .groupBy(nidHash)
+      .pivot(month_index, $(_indices))
+      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
+      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
   }
   /** Second transformation logic */
   def transformPackagePurchase(dataset: Dataset[_]): DataFrame = {
@@ -85,8 +84,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
   }
 
   def transformArpu(dataset: Dataset[_]): DataFrame = {
-
-    println("in the transformArpu")
 
     val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
 
@@ -116,7 +113,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
     val arpuCustomerFiltered = arpuCustomerWithJoins.filter(col(columnName) < 100)
 
     arpuCustomerFiltered.show(20, truncate = false)
-    println("in transformArpu point 3....")
 
     arpuCustomerFiltered
   }

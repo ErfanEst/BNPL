@@ -113,7 +113,7 @@ object Core {
 
     val date: ScallopOption[String] = opt[String](required = true, descr = "Date in the format yyyy-MM-dd")
     val name: ScallopOption[String] = opt[String](required = true, descr = "Name of the aggregation")
-    val backward: ScallopOption[Int] = opt[Int](required = false, default = Some(1), descr = "Range")
+//    val backward: ScallopOption[Int] = opt[Int](required = false, default = Some(1), descr = "Range")
 
     verify()
   }

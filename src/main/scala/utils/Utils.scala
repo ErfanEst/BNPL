@@ -8,9 +8,18 @@ import java.time.LocalDate
 object Utils {
 
   def monthIndexOf(date: String): Int = {
-    val persianDate = PersianDate.fromGregorian(LocalDate.parse(date))
-    12 * persianDate.getYear + persianDate.getMonthValue
+//    val gregorianDate = LocalDate.parse(date)
+    val gregorianDate = LocalDate.parse(date)
+    // Convert Gregorian date to PersianDate
+    val persianDate = PersianDate.fromGregorian(gregorianDate)
+
+    if (persianDate.getDayOfMonth >= 20) {
+      12 * persianDate.getYear + persianDate.getMonthValue + 1
+    } else {
+      12 * persianDate.getYear + persianDate.getMonthValue
+    }
   }
+
 
   object CommonColumns {
     val bibID = "bib_id"
