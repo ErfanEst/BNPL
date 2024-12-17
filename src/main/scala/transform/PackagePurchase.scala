@@ -24,6 +24,11 @@ class PackagePurchase(override val uid: String) extends AbstractAggregator {
     case "avg_BillPayment" => mean(when(col("service_type") === "BillPayment", col("amount") / col("cnt")))
     case "avg_Pay_Bill" => mean(when(col("service_type") === "Pay Bill", col("amount") / col("cnt")))
     case "avg_TDD_BOLTON" => mean(when(col("service_type") === "TDD_BOLTON", col("amount") / col("cnt")))
+    case "avg_OTHER" => mean(when(
+      col("service_type").isNotNull &&
+        col("service_type").isin("Recharge Money", "DATA_BOLTON", "EREFILL", "DATA_BUYABLE", "BillPayment", "Pay Bill", "TDD_BOLTON") === false,
+      col("amount") / col("cnt")
+    ))
     case "service_v[0]" => max(when(col("service_type") === "Recharge Money", 1).otherwise(0))
     case "service_v[1]" => max(when(col("service_type") === "DATA_BOLTON", 1).otherwise(0))
     case "service_v[2]" => max(when(col("service_type") === "EREFILL", 1).otherwise(0))
@@ -31,6 +36,9 @@ class PackagePurchase(override val uid: String) extends AbstractAggregator {
     case "service_v[4]" => max(when(col("service_type") === "BillPayment", 1).otherwise(0))
     case "service_v[5]" => max(when(col("service_type") === "Pay Bill", 1).otherwise(0))
     case "service_v[6]" => max(when(col("service_type") === "TDD_BOLTON", 1).otherwise(0))
+    case "service_v[7]" => max(when(
+      col("service_type").isNotNull &&
+        col("service_type").isin("Recharge Money", "DATA_BOLTON", "EREFILL", "DATA_BUYABLE", "BillPayment", "Pay Bill", "TDD_BOLTON") === false, 1).otherwise(0))
   }
 
   def listNeedBeforeTransform: Seq[String] = Seq("cnt", "amount", "service_type")

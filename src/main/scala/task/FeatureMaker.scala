@@ -19,7 +19,7 @@ object FeatureMaker {
     // 2024-09-05
     index = monthIndexOf("2024-09-05")
     val indices = index until index - 1 by - 1
-    val name = "CDR"
+    val name = "HandsetPrice"
 
 //    println(s"date is: ${opts.date()}\nname is: ${opts.name}")
 

@@ -29,22 +29,4 @@ class HandsetPrice(override val uid: String) extends AbstractAggregator {
     .setInputCol("handset_names")
     .setOutputCol("handset_onehot_vector")
 
-  def transformWithVectorizer(df: DataFrame, topMost: Seq[String]): DataFrame = {
-    val brandsWithOther = topMost :+ "Other"
-
-    val vectorizer = new CountVectorizer()
-      .setInputCol("handset_names")
-      .setOutputCol("handsetVec")
-      .setVocabSize(brandsWithOther.size)
-      .setMinDF(1)
-
-    val cvModel: CountVectorizerModel = vectorizer.fit(df)
-    val featuredDF = cvModel.transform(df)
-      .withColumn("handset_v", expr("vector_to_array(handsetVec)"))
-      .select(
-        col("fake_ic_number") +: brandsWithOther.indices.map(i => col("handset_v")(i).alias(s"feature_$i")): _*
-      )
-
-    featuredDF
-  }
 }
