@@ -13,7 +13,6 @@ import scala.io.Source
 object Core {
 
   val appConfig: Config = ConfigFactory.load
-  var size : Int = _
   lazy val spark: SparkSession = SparkSession.builder
     .appName(appConfig.getString("spark.appName"))
     .master(appConfig.getString("spark.master")) // Use all cores to match your system capacity while leaving 2 cores free for the OS
@@ -75,14 +74,14 @@ object Core {
 
     object CDR {
       private val conf = columnsExtractor("cdr")
-      val IsWeekend = "_is_weekend_"
+//      val IsWeekend = "_is_weekend_"
       val SMSCount: String = conf(4)
       val VoiceCount: String = conf(5)
       val CallDuration: String = conf(6)
       val GprsUsage: String = conf(7)
-      val IsActiveSMS = "isActiveSMS"
-      val IsActiveCall = "isActiveCall"
-      val IsActiveGPRS = "isActiveGPRS"
+//      val IsActiveSMS = "isActiveSMS"
+//      val IsActiveCall = "isActiveCall"
+//      val IsActiveGPRS = "isActiveGPRS"
 
     }
 
@@ -108,12 +107,10 @@ object Core {
           Input needed datas:
           --date-- Your desired timeframe for obtaining the features
           --name-- The desired feature name based on the dataset
-          --backward-- Time decrements for calculating the desired features
           """.stripMargin)
 
-    val date: ScallopOption[String] = opt[String](required = true, descr = "Date in the format yyyy-MM-dd")
+    val date: ScallopOption[Int] = opt[Int](required = true, descr = "Date Fathi format")
     val name: ScallopOption[String] = opt[String](required = true, descr = "Name of the aggregation")
-//    val backward: ScallopOption[Int] = opt[Int](required = false, default = Some(1), descr = "Range")
 
     verify()
   }

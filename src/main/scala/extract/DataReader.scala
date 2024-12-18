@@ -31,7 +31,6 @@ object DataReader {
   }
 
   private val readUserInfo: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
-    println("in the readUserInfo")
     fileType match {
       case "user_info" =>
         val user = spark.read.parquet(appConfig.getString("Path.UserInfo"))
@@ -72,17 +71,17 @@ object DataReader {
   }
 
   private val readPackagePurchase: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
-    println("in the readPackagePurchase")
     fileType match {
       case "package_purchase" =>
         val packagePurchase = spark.read.parquet(appConfig.getString("Path.PackagePurchase"))
+          .filter(col("amount") > lit(0) && col("cnt") > lit(0))
           .withColumn("month_index", lit(index))
+
         packagePurchase
     }
   }
 
   private val readHandSetPrice: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
-    println("in the readHandSetPrice")
     fileType match {
       case "handset_price" =>
         var handsetPrice = spark.read.parquet(appConfig.getString("Path.HandsetPrice"))
@@ -117,7 +116,6 @@ object DataReader {
 
         calculateCustomerLevelMetrics(arpuMsisdn)
 
-        println("in the data reader......")
         arpuMsisdn.show(30, truncate = false)
 
         arpuMsisdn.withColumn("month_index", lit(index))

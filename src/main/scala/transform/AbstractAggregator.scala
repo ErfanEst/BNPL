@@ -32,7 +32,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
     $(outputCols).map(column => aggregator(column) as RangedCol(column, $(_range)))
 
   protected def explodeForIndices(dataFrame: DataFrame): DataFrame = {
-    println($(_indices).min, $(_indices).max, $(_indices).length)
     if ($(_indices).length == 1) {
       val monthIndex = $(_indices).head
       dataFrame
@@ -104,7 +103,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
       .join(genderMode, Seq("fake_ic_number"), "left")
 
     arpuCustomerWithJoins.show(20, truncate = false)
-    println("in transformArpu point 2....")
 
     val columnName = arpuCustomerWithJoins.columns.find(_.contains("count_active_fake_msisdn")).getOrElse(
       throw new IllegalArgumentException("No column containing 'count_active_fake_msisdn' found")

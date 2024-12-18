@@ -39,12 +39,6 @@ object Aggregate {
       .getInputColumns
 
     def getSource(name: String, featureTableMap: Map[String, List[String]], index: Int, indices: Seq[Int], maxRange: Int, allNeededCols: Seq[String], nidHash: String): DataFrame = {
-      println("name is:" + name)
-      println("featureTableMap is:" + featureTableMap)
-      println("index is:" + index)
-      println("indices is:" + indices)
-      println("maxRange is:" + maxRange)
-      println("allNeededCols is:" + allNeededCols)
 
       val commonCols = allNeededCols ++ Seq(if (name == "PackagePurchase" || name == "HandsetPrice" || name == "Arpu") "fake_ic_number" else nidHash)
       val reader = selectReader(name, featureTableMap)

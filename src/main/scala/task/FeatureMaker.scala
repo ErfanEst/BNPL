@@ -2,6 +2,7 @@ package task
 
 import core.Core.{Conf, aggregationColsYaml, appConfig}
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.functions.col
 import transform.Aggregate.aggregate
 import utils.Utils.CommonColumns.nidHash
 import utils.Utils.monthIndexOf
@@ -15,19 +16,30 @@ object FeatureMaker {
     val startTime = System.currentTimeMillis()
     println(s"Program started at: ${new java.util.Date(startTime)}")
 
-//    val opts = new Conf(args)
-    // 2024-09-05
-    index = monthIndexOf("2024-09-05")
+    val opts = new Conf(args)
+    index = opts.date()
     val indices = index until index - 1 by - 1
-    val name = "HandsetPrice"
-
-//    println(s"date is: ${opts.date()}\nname is: ${opts.name}")
+    val name = opts.name()
 
     name match {
-      case _ =>
+      case "PackagePurchase" =>
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
         val aggregatedDataFrames: Seq[DataFrame] =
             aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        println("The data frame was created successfully...")
+
+
+        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+          df1.join(df2, Seq("fake_ic_number", "service_type"), "full_outer")
+        }
+
+        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+        println("Task finished successfully.")
+      case _ =>
+        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
         println("The data frame was created successfully...")
 
@@ -37,6 +49,7 @@ object FeatureMaker {
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
         println("Task finished successfully.")
     }
+
 
     val duration = System.currentTimeMillis() - startTime
     println(s"The code duration is: ${duration/1000} seconds.")
