@@ -1,0 +1,12 @@
+
+- UserInfo ===> 1 month
+	docker run --rm -v /home/erfan/parquet_data/UserInfo:/home/erfan/parquet_data/UserInfo -v /home/erfan/parquet_result:/home/erfan/parquet_result etl:v3 --date 16842 --name UserInfo
+
+- CDR ===> 2 month
+	docker run --rm -v /home/erfan/parquet_data/CDR:/home/erfan/parquet_data/CDR -v /home/erfan/parquet_result:/home/erfan/parquet_result etl:v3 --date 16842 --name CDR
+	
+- PackagePurchase ===> 2 month
+	docker run --rm -v /home/erfan/parquet_data/PackagePurchase:/home/erfan/parquet_data/PackagePurchase -v /home/erfan/parquet_result:/home/erfan/parquet_result etl:v3 --date 16842 --name 
+	PackagePurchase
+	
+	
