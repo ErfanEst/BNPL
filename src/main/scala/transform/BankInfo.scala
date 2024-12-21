@@ -3,6 +3,7 @@ package transform
 import core.Core.SourceCol.Package.{ActivationDate, DeactivationDate, OfferAmount, OfferingCode, OfferingName}
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable}
 import org.apache.spark.sql.Column
+import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
 
 object BankInfo extends DefaultParamsReadable[BankInfo] {
@@ -12,31 +13,34 @@ object BankInfo extends DefaultParamsReadable[BankInfo] {
 class BankInfo(override val uid: String) extends AbstractAggregator {
 
   def aggregator(name: String): Column = name match {
-    case "count_distinct_offercode" => countDistinct("newofferingCode")
-    case "count_distinct_offername" => countDistinct("newofferingName")
-    case "count_packages" => count("*")
-    case "sum_data_MB" => sum("data_usage")
-    case "sum_offer_amount" => sum("offer_amount")
-    case "mean_package_period" => mean(col(DeactivationDate) - col(ActivationDate))
-    case "max_package_period" => max(col(DeactivationDate) - col(ActivationDate))
-    case "min_package_period" => min(col(DeactivationDate) - col(ActivationDate))
-    case "ratio_offeramount_zero" => mean(when(col(OfferAmount) === 0, 1).otherwise(0))
+    case "active_days_cnt" => countDistinct("date_key")
+    case "max_sms_perDay" => max("sms_cnt")
+    case "min_sms_perDay" => min("sms_cnt")
+    case "std_sms_perDay" => stddev("sms_cnt")
+    case "avg_sms_perDay" => sum("sms_cnt") / countDistinct("date_key")
+    case "days_recievedSMS" => count("*")
+    case "sum_sms_count" => sum("sms_cnt")
+    case "primary_bank" => first(col("bank_name"))
+    case "primary_bank_sms_count" => max(col("bank_sms_cnt"))
+    case "last_bank" => last(col("bank_name"))
+    case "last_bank_sms_count" => min(col("bank_sms_cnt"))
+    case "primary_simcard" => first(col("fake_msistm"))
+    case "simcard_count" => countDistinct("fake_msistm")
+    case "primary_simcard_banks_count" =>
+      countDistinct(when(col("fake_msistm") === col("primary_simcard"), col("bank_name")))
+    case "total_banks_count" => countDistinct("bank_name")
+    case "loyality2PrimaryBank" => max("primary_bank_sms_count") / sum("sms_cnt")
   }
 
-  def listNeedBeforeTransform: Seq[String] = Seq(OfferingCode, OfferingName)
+  // Columns required before transformation
+  def listNeedBeforeTransform: Seq[String] = Seq("date_key", "sms_cnt", "bank_name", "fake_msistm")
 
+  // Transformations applied before aggregation
   def listProducedBeforeTransform: Seq[(String, Column)] = {
     Seq(
-      "newofferingCode" -> regexp_replace(col(OfferingCode), lit(" "), lit("")),
-      "newofferingName" -> regexp_replace(col(OfferingName), " ", ""),
-      "onl" -> lower(col("newofferingName")),
-      "onl_zip" -> regexp_replace(col("onl"), " ", ""),
-      // Extract numeric values for "gb" and "mb"
-      "data_usage" -> when(col("onl_zip").contains("gb"),
-        regexp_extract(col("onl_zip"), "(\\d+(?:\\.\\d+)?)\\s*gb", 1).cast("double") * 1024)
-        .when(col("onl_zip").contains("mb"),
-          regexp_extract(col("onl_zip"), "(\\d+(?:\\.\\d+)?)\\s*mb", 1).cast("double"))
-        .otherwise(0.0)
+      "bank_sms_cnt" -> col("sms_cnt"), // Alias for clarity in aggregations
+      "primary_simcard" -> first("fake_msistm").over(Window.partitionBy("fake_ic_number"))
     )
   }
+
 }

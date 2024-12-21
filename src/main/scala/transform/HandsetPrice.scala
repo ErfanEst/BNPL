@@ -2,8 +2,7 @@ package transform
 
 import org.apache.spark.ml.feature.{CountVectorizer, CountVectorizerModel}
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable}
-import org.apache.spark.sql.{Column, DataFrame}
-import org.apache.spark.sql.expressions.Window
+import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions._
 
 object HandsetPrice extends DefaultParamsReadable[HandsetPrice] {
@@ -13,20 +12,16 @@ object HandsetPrice extends DefaultParamsReadable[HandsetPrice] {
 class HandsetPrice(override val uid: String) extends AbstractAggregator {
 
   def aggregator(name: String): Column = name match {
-    case "handset_onehot_vector" =>
-      expr("vector_to_array(handsetVec)")
+    case "handset_onehot_vector" => count("cnt_of_days")
   }
 
-  def listNeedBeforeTransform: Seq[String] = Seq("fake_ic_number", "handset_brand")
+  def listNeedBeforeTransform: Seq[String] = Seq()
 
+  // List of columns produced after transformation
   def listProducedBeforeTransform: Seq[(String, Column)] = {
-    Seq(
-      "handset_names" -> collect_list(col("handset_brand_2"))
-    )
+    Seq()
   }
 
-  val cvm = new CountVectorizerModel(Array("SAMSUNG", "XIAOMI", "HUAWEI", "APPLE", "Other"))
-    .setInputCol("handset_names")
-    .setOutputCol("handset_onehot_vector")
+
 
 }

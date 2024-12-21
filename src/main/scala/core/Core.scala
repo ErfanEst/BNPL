@@ -21,7 +21,7 @@ object Core {
     .getOrCreate
 
   val cvm: CountVectorizerModel = new CountVectorizerModel(Array("SAMSUNG", "XIAOMI", "HUAWEI", "APPLE", "Other"))
-    .setInputCol("handset_names")
+    .setInputCol("handset_brand")
     .setOutputCol("handsetVec")
 
   implicit private val yamlTablesFormat: YamlFormat[YamlTableData] = yamlFormat2(YamlTableData)

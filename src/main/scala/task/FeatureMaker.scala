@@ -22,6 +22,22 @@ object FeatureMaker {
     val name = opts.name()
 
     name match {
+      case "HandsetPrice" =>
+        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        println("The data frame was created successfully...")
+
+
+        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+          df1.join(df2, Seq("fake_ic_number"), "full_outer")
+        }
+
+        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+        println("Task finished successfully.")
+
+
       case "PackagePurchase" =>
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
         val aggregatedDataFrames: Seq[DataFrame] =

@@ -28,6 +28,7 @@ object DataReader {
     case x if List("package_purchase").contains(x) => readPackagePurchase(x, index)
     case x if List("handset_price").contains(x) => readHandSetPrice(x, index)
     case x if List("arpu").contains(x) => readArpu(x, index)
+    case x if List("customer_person_type_bank_info").contains(x) => readBankInfo(x, index)
   }
 
   private val readUserInfo: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
@@ -86,6 +87,8 @@ object DataReader {
       case "handset_price" =>
         var handsetPrice = spark.read.parquet(appConfig.getString("Path.HandsetPrice"))
           .withColumn("month_index", lit(index))
+        handsetPrice.printSchema()
+
         handsetPrice = handsetPrice.dropDuplicates()
         handsetPrice = handsetPrice.filter(col("handset_brand").isNotNull)
         handsetPrice = handsetPrice.filter(col("cnt_of_days").isNotNull)
@@ -95,7 +98,6 @@ object DataReader {
   }
 
   private val readArpu: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
-
     fileType match {
       case "arpu" =>
         val arpu = spark.read.parquet(appConfig.getString("Path.Arpu"))
@@ -119,6 +121,17 @@ object DataReader {
         arpuMsisdn.show(30, truncate = false)
 
         arpuMsisdn.withColumn("month_index", lit(index))
+    }
+  }
+
+  private val readBankInfo: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+    fileType match {
+      case "customer_person_type_bank_info" =>
+        val user = spark.read.parquet(appConfig.getString("Path.BankInfo"))
+          .filter(col(nidHash).isNotNull)
+          .repartition(300)
+          .withColumn("month_index", lit(index))
+        user
     }
   }
 
