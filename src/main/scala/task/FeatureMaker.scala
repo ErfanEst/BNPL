@@ -2,10 +2,8 @@ package task
 
 import core.Core.{Conf, aggregationColsYaml, appConfig}
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.functions.col
 import transform.Aggregate.aggregate
 import utils.Utils.CommonColumns.nidHash
-import utils.Utils.monthIndexOf
 
 object FeatureMaker {
 
@@ -15,6 +13,9 @@ object FeatureMaker {
 
     val startTime = System.currentTimeMillis()
     println(s"Program started at: ${new java.util.Date(startTime)}")
+
+//    println(monthIndexOf("2024-09-10"))
+
 
     val opts = new Conf(args)
     index = opts.date()
@@ -29,14 +30,12 @@ object FeatureMaker {
 
         println("The data frame was created successfully...")
 
-
         val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
           df1.join(df2, Seq("fake_ic_number"), "full_outer")
         }
 
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
         println("Task finished successfully.")
-
 
       case "PackagePurchase" =>
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)

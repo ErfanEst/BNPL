@@ -93,11 +93,14 @@ aggregation:
       count_active_fake_msisdn: [1]
       age: [1]
 
-
   - name: HandsetPrice
     tables: ["handset_price"]
     features:
-      handset_onehot_vector: [1, 2]
+      handset_v[0]: [1, 2]
+      handset_v[1]: [1, 2]
+      handset_v[2]: [1, 2]
+      handset_v[3]: [1, 2]
+      handset_v[4]: [1, 2]
 
   - name: BankInfo
     tables: ['customer_person_type_bank_info']

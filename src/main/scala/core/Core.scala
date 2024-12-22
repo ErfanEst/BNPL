@@ -20,10 +20,6 @@ object Core {
     .config("spark.driver.memory", appConfig.getString("spark.driverMemory")) // 16GB memory for the driver
     .getOrCreate
 
-  val cvm: CountVectorizerModel = new CountVectorizerModel(Array("SAMSUNG", "XIAOMI", "HUAWEI", "APPLE", "Other"))
-    .setInputCol("handset_brand")
-    .setOutputCol("handsetVec")
-
   implicit private val yamlTablesFormat: YamlFormat[YamlTableData] = yamlFormat2(YamlTableData)
 
   case class YamlTableData(name: String, cols: List[String])

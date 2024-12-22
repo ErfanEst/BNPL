@@ -1,14 +1,15 @@
 package transform
 
-import core.Core
 import core.Core.SourceCol.Arpu.{flagSimTierMode, genderMode, siteTypeMode}
-import core.Core.{IndexedColumn, RangedCol, cvm}
+import core.Core.{IndexedColumn, RangedCol}
+import org.apache.spark.ml.feature.CountVectorizerModel
 import org.apache.spark.sql.{Column, DataFrame, Dataset}
 import org.apache.spark.sql.functions.{col, expr, lit}
 import utils.Utils.CommonColumns.{month_index, nidHash}
 import utils.Utils.getLeafNeededColumns
 import org.apache.spark.ml.param.IntParam
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.functions.array
 import org.apache.spark.sql.functions
 
 abstract class AbstractAggregator extends AbstractTransformer{
@@ -69,6 +70,7 @@ abstract class AbstractAggregator extends AbstractTransformer{
   }
   /** Second transformation logic */
   def transformPackagePurchase(dataset: Dataset[_]): DataFrame = {
+
     val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
 
     val nonMonthIndexDependentDf =
@@ -132,18 +134,19 @@ abstract class AbstractAggregator extends AbstractTransformer{
   }
 
   def transformHandsetPrice(dataset: Dataset[_]): DataFrame = {
+    val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
 
-    val result = dataset
+    val nonMonthIndexDependentDf =
+      listProducedGrouped.getOrElse(false, Map())
+        .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
+
+    println(nonMonthIndexDependentDf)
+
+    listProducedGrouped.getOrElse(true, Map())
+      .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
       .groupBy("fake_ic_number")
-
-    val featuredDf = cvm.transform(result).drop("handset_brand")
-    val numBrands = 5 // Number of top brands + 1 for "Other"
-    val resultDf = featuredDf.withColumn("handset_v", expr("vector_to_array(handsetVec)"))
-      .select(
-        col("fake_ic_number") +: (0 until numBrands).map(i => col("handset_v").getItem(i).alias(s"brand_$i")): _*
-      )
-    result
+      .pivot(month_index, $(_indices))
+      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
+      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
   }
-
-
 }

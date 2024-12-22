@@ -2,6 +2,7 @@ package extract
 
 import core.Core.SourceCol.Arpu.{flagSimTierMode, genderMode, siteTypeMode}
 import core.Core.{appConfig, spark}
+import org.apache.spark.ml.feature.CountVectorizerModel
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.expressions.Window
@@ -34,10 +35,12 @@ object DataReader {
   private val readUserInfo: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "user_info" =>
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
         val user = spark.read.parquet(appConfig.getString("Path.UserInfo"))
           .filter(col(nidHash).isNotNull)
           .repartition(300)
-          .withColumn("month_index", lit(index))
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
         user
     }
   }
@@ -45,17 +48,18 @@ object DataReader {
   private val readPackage: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "package" =>
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
         val pkg = spark.read.parquet(appConfig.getString("Path.Package"))
           .filter(col(nidHash).isNotNull)
           .repartition(300)
-          .withColumn("month_index", lit(index))
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
         val preProcessedDf = pkg
           .withColumn("de_a_date", unix_timestamp(to_timestamp(col("deactivation_date"), "yyyyMMdd HH:mm:ss")))
           .withColumn("a_date", unix_timestamp(to_timestamp(col("activation_date"), "yyyyMMdd HH:mm:ss")))
 
         preProcessedDf
     }
-
   }
 
   private val readCDR: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
@@ -85,14 +89,25 @@ object DataReader {
   private val readHandSetPrice: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "handset_price" =>
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
         var handsetPrice = spark.read.parquet(appConfig.getString("Path.HandsetPrice"))
-          .withColumn("month_index", lit(index))
-        handsetPrice.printSchema()
+          .withColumn("handset_brand_array", array("handset_brand"))
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
+          .drop("date_key")
+
+        val cvm: CountVectorizerModel = new CountVectorizerModel(Array("SAMSUNG", "XIAOMI", "HUAWEI", "APPLE", "Other"))
+          .setInputCol("handset_brand_array")
+          .setOutputCol("handsetVec")
+
+        handsetPrice = cvm.transform(handsetPrice)
 
         handsetPrice = handsetPrice.dropDuplicates()
         handsetPrice = handsetPrice.filter(col("handset_brand").isNotNull)
         handsetPrice = handsetPrice.filter(col("cnt_of_days").isNotNull)
-        handsetPrice = handsetPrice.withColumn("handset_brand_2", expr("regexp_replace(handset_brand, r'^(?!.*(SAMSUNG|XIAOMI|HUAWEI|APPLE)).*$', 'Other')"))
+
+        handsetPrice.show(100, truncate = false)
+
         handsetPrice
     }
   }
