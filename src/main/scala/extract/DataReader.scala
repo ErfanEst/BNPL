@@ -1,6 +1,6 @@
 package extract
 
-import core.Core.SourceCol.Arpu.{flagSimTierMode, genderMode, siteTypeMode}
+import core.Core.SourceCol.Arpu.{averageAge, flagSimTierMode, genderMode, mostFrequentFlagSimTier, mostFrequentGender, siteTypeMode}
 import core.Core.{appConfig, spark}
 import org.apache.spark.ml.feature.CountVectorizerModel
 import org.apache.spark.sql.functions._
@@ -78,9 +78,11 @@ object DataReader {
   private val readPackagePurchase: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "package_purchase" =>
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
         val packagePurchase = spark.read.parquet(appConfig.getString("Path.PackagePurchase"))
           .filter(col("amount") > lit(0) && col("cnt") > lit(0))
-          .withColumn("month_index", lit(index))
+          .withColumn("month_index", monthIndexOfUDF(col("date")))
+          .drop("date_key")
 
         packagePurchase
     }
@@ -115,10 +117,14 @@ object DataReader {
   private val readArpu: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "arpu" =>
-        val arpu = spark.read.parquet(appConfig.getString("Path.Arpu"))
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+        val msisdn_metrics = spark.read.parquet(appConfig.getString("Path.Arpu"))
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
+          .drop("month_id")
+          .drop("date_key")
           .repartition(300)
-        val arpuMsisdn: DataFrame = arpu
-          .groupBy("fake_msisdn", "fake_ic_number")
+          .groupBy("fake_msisdn", "fake_ic_number", month_index)
           .agg(
             when(last("gender") === "F", 1).otherwise(0).alias("gender"),
             max("age").alias("age"),
@@ -129,13 +135,15 @@ object DataReader {
             max("gprs_revenue").alias("gprs_revenue"),
             max("sms_revenue").alias("sms_revenue"),
             max("subscription_revenue").alias("subscription_revenue")
-          )
+          ).na.fill(Map(
+            "voice_revenue" -> 0,
+            "gprs_revenue" -> 0,
+            "sms_revenue" -> 0,
+            "subscription_revenue" -> 0
+          ))
+        calculateCustomerLevelMetrics(msisdn_metrics)
 
-        calculateCustomerLevelMetrics(arpuMsisdn)
-
-        arpuMsisdn.show(30, truncate = false)
-
-        arpuMsisdn.withColumn("month_index", lit(index))
+        msisdn_metrics
     }
   }
 
@@ -167,6 +175,8 @@ object DataReader {
       .sum("count")
       .na.fill(0)
 
+    dfPivot.printSchema()
+
     // Step 3: Rename columns to reflect the site_type (optional but recommended)
     val distinctSiteTypes = arpuMsisdn.select("site_type")
       .distinct()
@@ -191,6 +201,8 @@ object DataReader {
         col("flag_sim_tier").alias("flag_sim_tier_mode").cast(IntegerType)
       )
 
+    flagSimTierMode.printSchema()
+
     genderMode = arpuMsisdn
       .filter(col("gender").isNotNull)
       .groupBy("fake_ic_number", "gender")
@@ -201,5 +213,38 @@ object DataReader {
         col("fake_ic_number"),
         col("gender").alias("gender").cast(IntegerType)
       )
+//    val arpuCustomer = arpuMsisdn
+//      .groupBy("fake_ic_number")
+//      .agg(
+//        // last("gender").alias("gender"), // Uncomment this line if needed, but `last` in Spark may require specific parameters.
+//        max("age").alias("age"),
+//        avg("res_com_score").alias("avg_res_com_score"),
+//        avg("voice_revenue").alias("avg_voice_revenue"),
+//        avg("gprs_revenue").alias("avg_gprs_revenue"),
+//        avg("sms_revenue").alias("avg_sms_revenue"),
+//        avg("subscription_revenue").alias("avg_subscription_revenue"),
+//        count("fake_msisdn").alias("count_active_fake_msisdn")
+//      )
+//
+//    val arpuCustomerJoint = arpuCustomer
+//      .join(siteTypeMode, Seq("fake_ic_number"), "left")
+//      .join(flagSimTierMode, Seq("fake_ic_number"), "left")
+//      .join(genderMode, Seq("fake_ic_number"), "left")
+//
+//    arpuCustomerJoint.filter(col("count_active_fake_msisdn") < 100)
+//
+//    averageAge = arpuCustomerJoint.select(avg("age")).first().getDouble(0)
+//    mostFrequentGender = 0
+//    mostFrequentFlagSimTier = arpuCustomerJoint
+//      .filter(col("flag_sim_tier_mode").isNotNull)
+//      .groupBy("flag_sim_tier_mode")
+//      .count()
+//      .orderBy(desc("count"))
+//      .first()
+//      .get(0)
+//
+//
+//    arpuCustomerJoint
   }
+
 }

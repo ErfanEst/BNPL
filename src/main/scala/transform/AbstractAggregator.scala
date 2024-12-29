@@ -87,6 +87,9 @@ abstract class AbstractAggregator extends AbstractTransformer{
 
   def transformArpu(dataset: Dataset[_]): DataFrame = {
 
+    dataset.toDF.show(10, truncate = 0)
+    Thread.sleep(5000)
+
     val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
 
     val nonMonthIndexDependentDf =
@@ -100,13 +103,14 @@ abstract class AbstractAggregator extends AbstractTransformer{
       .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
 
+    tempDf.printSchema()
+
     val arpuCustomerWithJoins = tempDf
       .join(siteTypeMode, Seq("fake_ic_number"), "left")
       .join(flagSimTierMode, Seq("fake_ic_number"), "left")
       .join(genderMode, Seq("fake_ic_number"), "left")
 
     arpuCustomerWithJoins.show(20, truncate = false)
-
     val columnName = arpuCustomerWithJoins.columns.find(_.contains("count_active_fake_msisdn")).getOrElse(
       throw new IllegalArgumentException("No column containing 'count_active_fake_msisdn' found")
     )
@@ -114,7 +118,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
     val arpuCustomerFiltered = arpuCustomerWithJoins.filter(col(columnName) < 100)
 
     arpuCustomerFiltered.show(20, truncate = false)
-
     arpuCustomerFiltered
   }
 

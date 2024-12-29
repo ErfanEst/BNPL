@@ -42,7 +42,11 @@ object Aggregate {
 
       val commonCols = allNeededCols ++ Seq(if (name == "PackagePurchase" || name == "HandsetPrice" || name == "Arpu") "fake_ic_number" else nidHash)
       val reader = selectReader(name, featureTableMap)
-      selectCols(setTimeRange(reader)(indices, maxRange))(commonCols)
+      val df = selectCols(setTimeRange(reader)(indices, maxRange))(commonCols)
+      df.show(20, truncate = false)
+      println("in the get source ------------")
+      Thread.sleep(10000)
+      df
     }
 
     def transformOutput(
@@ -62,6 +66,7 @@ object Aggregate {
     }
 
     // Main logic
+
     val source = getSource(name, featureTableMap, index, indices, maxRange, allNeededCols, nidHash)
     val result = transformOutput(name, source, outputColumns, aggregator)
     result

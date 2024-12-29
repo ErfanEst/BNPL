@@ -17,10 +17,15 @@ object FeatureMaker {
 //    println(monthIndexOf("2024-09-10"))
 
 
-    val opts = new Conf(args)
-    index = opts.date()
+//    val opts = new Conf(args)
+//    index = opts.date()
+//    val indices = index until index - 1 by - 1
+//    val name = opts.name()
+
+//    val opts = new Conf(args)
+    index = 16843
     val indices = index until index - 1 by - 1
-    val name = opts.name()
+    val name = "Arpu"
 
     name match {
       case "HandsetPrice" =>
@@ -51,6 +56,21 @@ object FeatureMaker {
 
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
         println("Task finished successfully.")
+
+      case "Arpu" =>
+        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        println("The data frame was created successfully...")
+
+        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+          df1.join(df2, Seq("fake_ic_number"), "full_outer")
+        }
+
+        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+        println("Task finished successfully.")
+
       case _ =>
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
         val aggregatedDataFrames: Seq[DataFrame] =

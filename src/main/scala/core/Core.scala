@@ -94,6 +94,11 @@ object Core {
       var flagSimTierMode: DataFrame = _
       var genderMode: DataFrame = _
       var siteTypeMode: DataFrame = _
+      var averageAge: Int = _
+      var mostFrequentGender: Int = _
+      var mostFrequentFlagSimTier: Any = _
+
+
     }
   }
 

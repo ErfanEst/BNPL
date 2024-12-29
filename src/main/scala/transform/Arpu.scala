@@ -1,6 +1,5 @@
 package transform
 
-import core.Core.SourceCol.Package.{ActivationDate, DeactivationDate, OfferAmount, OfferingCode, OfferingName}
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable}
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions._
