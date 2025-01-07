@@ -23,9 +23,9 @@ object FeatureMaker {
 //    val name = opts.name()
 
 //    val opts = new Conf(args)
-    index = 16843
+    index = 16842
     val indices = index until index - 1 by - 1
-    val name = "Arpu"
+    val name = "BankInfo"
 
     name match {
       case "HandsetPrice" =>
@@ -41,6 +41,35 @@ object FeatureMaker {
 
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
         println("Task finished successfully.")
+
+      case "BankInfo" =>
+        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        println("The data frame was created successfully...")
+
+        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+          df1.join(df2, Seq("fake_ic_number"), "full_outer")
+        }
+
+        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+        println("Task finished successfully.")
+
+
+//      case "BankInfoGroupBy" =>
+//        val outputColumnsGroupBy = reverseMapOfList(aggregationColsYaml.filter(_.name == "BankInfoGroupBy").map(_.features).flatMap(_.toList).toMap)
+//        val aggregatedDataFramesGroupBy: Seq[DataFrame] =
+//          aggregate(name = "BankInfoGroupBy", indices = indices, outputColumns = outputColumnsGroupBy, index = index)
+//
+//        println("The data frame was created successfully...")
+//
+//        val combinedDataFrameGroupBy = aggregatedDataFramesGroupBy.reduce { (df1, df2) =>
+//          df1.join(df2, Seq("fake_ic_number"), "full_outer")
+//        }
+//
+//        combinedDataFrameGroupBy.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+//        println("Task finished successfully.")
 
       case "PackagePurchase" =>
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
@@ -84,7 +113,6 @@ object FeatureMaker {
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
         println("Task finished successfully.")
     }
-
 
     val duration = System.currentTimeMillis() - startTime
     println(s"The code duration is: ${duration/1000} seconds.")

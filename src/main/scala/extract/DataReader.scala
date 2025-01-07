@@ -148,15 +148,31 @@ object DataReader {
   }
 
   private val readBankInfo: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+
     fileType match {
       case "customer_person_type_bank_info" =>
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
         val user = spark.read.parquet(appConfig.getString("Path.BankInfo"))
-          .filter(col(nidHash).isNotNull)
+          .filter(col("fake_ic_number").isNotNull)
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
           .repartition(300)
-          .withColumn("month_index", lit(index))
         user
     }
   }
+
+//  private val readBankInfoGroupBy: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+//    fileType match {
+//      case "customer_person_type_bank_info" =>
+//        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+//        val user = spark.read.parquet(appConfig.getString("Path.BankInfo"))
+//          .filter(col("fake_ic_number").isNotNull)
+//          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+//          .withColumn(month_index, monthIndexOfUDF(col("date")))
+//          .repartition(300)
+//        user
+//    }
+//  }
 
 
   def setTimeRange(dataFrame: DataFrame)(indices: Seq[Int], range: Int = 0): DataFrame = {

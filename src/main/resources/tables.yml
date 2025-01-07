@@ -18,7 +18,7 @@ parquet_tables:
     cols: ["dt_batch_id", "create_timestamp", "month_id", "fake_msisdn", "fake_ic_number", "contract_type", "registration_date", "gender", "age", "modem_model", "flag_sim_tier", "site_id", "site_type", "res_com_score", "voice_revenue", "gprs_revenue", "sms_revenue", "subscription_revenue", "date_key"]
 
   - name: "customer_person_type_bank_info"
-    cols: ["month_id", "fake_msistm", "fake_ic_number", "bank_name", "sms_cnt", "date_key"]
+    cols: ['fake_ic_number', 'dt_batch_id', 'create_timestamp', 'month_id', 'fake_msisdn', 'bank_name', 'sms_cnt', 'date_key']
 
 
 
