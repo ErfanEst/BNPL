@@ -30,6 +30,7 @@ object DataReader {
     case x if List("handset_price").contains(x) => readHandSetPrice(x, index)
     case x if List("arpu").contains(x) => readArpu(x, index)
     case x if List("customer_person_type_bank_info").contains(x) => readBankInfo(x, index)
+    case x if List("recharge").contains(x) => readRecharge(x, index)
   }
 
   private val readUserInfo: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
@@ -148,7 +149,6 @@ object DataReader {
   }
 
   private val readBankInfo: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
-
     fileType match {
       case "customer_person_type_bank_info" =>
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
@@ -161,19 +161,20 @@ object DataReader {
     }
   }
 
-//  private val readBankInfoGroupBy: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
-//    fileType match {
-//      case "customer_person_type_bank_info" =>
-//        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-//        val user = spark.read.parquet(appConfig.getString("Path.BankInfo"))
-//          .filter(col("fake_ic_number").isNotNull)
-//          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
-//          .withColumn(month_index, monthIndexOfUDF(col("date")))
-//          .repartition(300)
-//        user
-//    }
-//  }
-
+  private val readRecharge: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+    fileType match {
+      case "recharge" =>
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+        val rech = spark.read.parquet(appConfig.getString("Path.Recharge"))
+          .filter(col(nidHash).isNotNull)
+          .withColumn("recharge_dt", to_timestamp(col("recharge_dt"), "yyyyMMdd' 'HH:mm:ss"))
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
+          .drop(col("date_key"))
+          .repartition(300)
+        rech
+    }
+  }
 
   def setTimeRange(dataFrame: DataFrame)(indices: Seq[Int], range: Int = 0): DataFrame = {
     dataFrame

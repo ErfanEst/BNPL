@@ -97,7 +97,13 @@ object Core {
       var averageAge: Int = _
       var mostFrequentGender: Int = _
       var mostFrequentFlagSimTier: Any = _
+    }
 
+    object Recharge {
+      private val conf = columnsExtractor("recharge")
+      val rechargeValueAmt: String = conf(5)
+      val rechargeDt: String = conf(6)
+      val date: String = "date"
 
     }
   }

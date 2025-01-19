@@ -1,26 +1,24 @@
 package transform
 
-import core.Core.SourceCol.Package.{ActivationDate, DeactivationDate, OfferAmount, OfferingCode, OfferingName}
+import org.apache.spark.sql.expressions.{Window, WindowSpec}
+import org.apache.spark.sql.functions._
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable}
 import org.apache.spark.sql.Column
-import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.functions._
 
-object BankInfoGroupBy extends DefaultParamsReadable[BankInfo] {
+object BankInfoGroupBy extends DefaultParamsReadable[BankInfoGroupBy] {
   def apply(): BankInfoGroupBy = new BankInfoGroupBy(Identifiable.randomUID("agg"))
 }
 
 class BankInfoGroupBy(override val uid: String) extends AbstractAggregator {
 
   def aggregator(name: String): Column = name match {
-    case "active_days_cnt" => countDistinct("date_key")
-    case "primary_bank" => first(col("bank_name"))
-    case "primary_bank_sms_count" => max(col("bank_sms_cnt"))
-    case "last_bank" => last(col("bank_name"))
-    case "last_bank_sms_count" => min(col("bank_sms_cnt"))
-    case "primary_simcard_banks_count" =>
-      countDistinct(when(col("fake_msisdn") === col("primary_simcard"), col("bank_name")))
-    case "loyality2PrimaryBank" => max("primary_bank_sms_count") / sum("sms_cnt")
+    case "primary_bank" => first(when(col("rank_desc") === 1, col("bank_name")))
+    case "primary_bank_sms_count" => count(when(col("rank_desc") === 1, col("sms_cnt")))
+    case "last_bank" => first(when(col("rank_asc") === 1, col("bank_name")))
+    case "last_bank_sms_count" => first(when(col("rank_asc") === 1, col("sms_cnt")))
+    case "primary_simcard_banks_count" => countDistinct(col("primary_bank_sms_count_temp"))
+    case "loyality2PrimaryBank" => max("primary_bank_sms_count_temp") / sum("sms_cnt")
+    case _ => throw new IllegalArgumentException(s"Unsupported aggregation name: $name")
   }
 
   // Columns required before transformation
@@ -28,13 +26,19 @@ class BankInfoGroupBy(override val uid: String) extends AbstractAggregator {
 
   // Transformations applied before aggregation
   def listProducedBeforeTransform: Seq[(String, Column)] = {
-    Seq(
+    val rankWindowAsc = Window.partitionBy("bank_name").orderBy(asc("sms_cnt"))
+    val rankWindowDsc = Window.partitionBy("bank_name").orderBy(asc("sms_cnt"))
+    val primarySimcard = first("fake_msisdn").over(rankWindowAsc)
+    val rankAsc = row_number().over(rankWindowAsc)
+    val rankDec = row_number().over(rankWindowDsc)
+    val primaryBankSMSCount = when(col("fake_msisdn") === col("primary_simcard"), col("bank_name"))
 
-      "bank_sms_cnt" -> col("sms_cnt"),
-      "primary_bank_sms_count" -> col("bank_sms_cnt"),
-      // Alias for clarity in aggregations
-      "primary_simcard" -> first("fake_msisdn").over(Window.partitionBy("fake_ic_number"))
+    Seq(
+      "rank_desc" -> rankDec,
+      "rank_asc" -> rankAsc,
+      "primary_simcard" -> primarySimcard,
+      "primary_bank_sms_count_temp" -> primaryBankSMSCount
     )
   }
-
 }
+

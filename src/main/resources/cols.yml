@@ -119,11 +119,28 @@ aggregation:
   - name: BankInfoGroupBy
     tables: ['customer_person_type_bank_info']
     features:
-      active_days_cnt: [2]
       primary_bank: [2]
       primary_bank_sms_count: [2]
       last_bank: [2]
       last_bank_sms_count: [2]
       primary_simcard_banks_count: [2]
       loyality2PrimaryBank: [2]
+
+  - name: Recharge
+    tables: ['recharge']
+    features:
+      count_recharge: [2]
+      count_afternoon_recharges: [2]
+      ratio_afternoon_recharge: [2]
+      max_recharge: [2]
+      min_recharge: [2]
+      mean_recharge: [2]
+      sum_recharge: [2]
+      balance_max: [2]
+      mean_balance_before_recharge: [2]
+      ratio_weekend_recharge: [2]
+
+
+
+
 

@@ -4,6 +4,7 @@ import core.Core.{Conf, aggregationColsYaml, appConfig}
 import org.apache.spark.sql.DataFrame
 import transform.Aggregate.aggregate
 import utils.Utils.CommonColumns.nidHash
+import utils.Utils.monthIndexOf
 
 object FeatureMaker {
 
@@ -25,7 +26,9 @@ object FeatureMaker {
 //    val opts = new Conf(args)
     index = 16842
     val indices = index until index - 1 by - 1
-    val name = "BankInfo"
+    val name = "Recharge"
+
+//    println(monthIndexOf("2024-06-09"))
 
     name match {
       case "HandsetPrice" =>
@@ -57,7 +60,8 @@ object FeatureMaker {
         println("Task finished successfully.")
 
 
-//      case "BankInfoGroupBy" =>
+//      case "BankInfo" =>
+//        println("point 0")
 //        val outputColumnsGroupBy = reverseMapOfList(aggregationColsYaml.filter(_.name == "BankInfoGroupBy").map(_.features).flatMap(_.toList).toMap)
 //        val aggregatedDataFramesGroupBy: Seq[DataFrame] =
 //          aggregate(name = "BankInfoGroupBy", indices = indices, outputColumns = outputColumnsGroupBy, index = index)

@@ -31,7 +31,6 @@ class BankInfo(override val uid: String) extends AbstractAggregator {
   // Transformations applied before aggregation
   def listProducedBeforeTransform: Seq[(String, Column)] = {
     Seq(
-
       "bank_sms_cnt" -> col("sms_cnt"),
       "primary_bank_sms_count" -> col("bank_sms_cnt"),
        // Alias for clarity in aggregations

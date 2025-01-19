@@ -18,6 +18,7 @@ object Aggregate {
     case "Arpu" => Arpu()
     case "BankInfo" => BankInfo()
     case "BankInfoGroupBy" => BankInfoGroupBy()
+    case "Recharge" => Recharge()
   }
   def aggregate(
                  name: String,
@@ -39,11 +40,11 @@ object Aggregate {
       .setOutputColumns(allOutputCols)
       .getInputColumns
 
-    def getSource(name: String, featureTableMap: Map[String, List[String]], index: Int, indices: Seq[Int], maxRange: Int, allNeededCols: Seq[String], nidHash: String): DataFrame = {
 
+    def getSource(name: String, featureTableMap: Map[String, List[String]], index: Int, indices: Seq[Int], maxRange: Int, allNeededCols: Seq[String], nidHash: String): DataFrame = {
       val commonCols = allNeededCols ++ Seq(if (name == "PackagePurchase" || name == "HandsetPrice" || name == "Arpu" || name == "BankInfo" || name == "BankInfoGroupBy") "fake_ic_number" else nidHash)
       val reader = selectReader(name, featureTableMap)
-      selectCols(setTimeRange(reader)(indices, maxRange))(commonCols)
+      selectCols(setTimeRange(reader)(indices, maxRange))(commonCols.distinct)
     }
 
     def transformOutput(

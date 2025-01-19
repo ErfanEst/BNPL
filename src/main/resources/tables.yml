@@ -20,6 +20,8 @@ parquet_tables:
   - name: "customer_person_type_bank_info"
     cols: ['fake_ic_number', 'dt_batch_id', 'create_timestamp', 'month_id', 'fake_msisdn', 'bank_name', 'sms_cnt', 'date_key']
 
+  - name: "recharge"
+    cols: ["dt_batch_id", "create_timestamp", "bib_id", "fake_id", "nid_hash", "recharge_value_amt", "recharge_dt", "origin_host_nm", "account_balance_before_amt", "account_balance_after_amt", "date_key"]
 
 
 
