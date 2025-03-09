@@ -6,7 +6,7 @@ import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable}
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
-import utils.Utils.CommonColumns.{dateKey, month_index, nidHash}
+import utils.Utils.CommonColumns.{bibID, dateKey, month_index}
 
 object CDR extends DefaultParamsReadable[CDR] {
   def apply(): CDR = new CDR(Identifiable.randomUID("agg"))
@@ -52,13 +52,13 @@ class CDR(override val uid: String) extends AbstractAggregator {
       sum(when(col("weekday_or_weekend") === "weekend", col(CallDuration)))
     case "gprs_usag_sum_weekend" =>
       sum(when(col("weekday_or_weekend") === "weekend", col(GprsUsage)))
-    case "ratio_weekend_sms" =>
+    case "ratio_weekend_sms_count" =>
       sum(when(col("weekday_or_weekend") === "weekend", col(SMSCount))) /
         sum(col(SMSCount))
-    case "ratio_weekend_voice" =>
+    case "ratio_weekend_voice_count" =>
       sum(when(col("weekday_or_weekend") === "weekend", col(VoiceCount))) /
         sum(col(VoiceCount))
-    case "ratio_weekend_call_duration" =>
+    case "ratio_weekend_call_duration_sum" =>
       sum(when(col("weekday_or_weekend") === "weekend", col(CallDuration))) /
         sum(col(CallDuration))
     case "ratio_weekend_gprs_usage" =>
@@ -70,7 +70,7 @@ class CDR(override val uid: String) extends AbstractAggregator {
 
   override def listProducedBeforeTransform: Seq[(String, Column)] = {
 
-    val w = Window.partitionBy(nidHash, month_index).orderBy(dateKey).rowsBetween(Window.unboundedPreceding, Window.currentRow - 1)
+    val w = Window.partitionBy(bibID, month_index).orderBy(dateKey).rowsBetween(Window.unboundedPreceding, Window.currentRow - 1)
 
     val lagsms = when(col(SMSCount) > lit(0), max(when(col(SMSCount) > lit(0), col(dateKey))).over(w))
     val lagvoice = when(col(VoiceCount) > lit(0), max(when(col(VoiceCount) > lit(0), col(dateKey))).over(w))

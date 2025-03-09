@@ -4,7 +4,7 @@ import core.Core.featureTableMap
 import extract.DataReader.{selectCols, selectReader, setTimeRange}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql.DataFrame
-import utils.Utils.CommonColumns.nidHash
+import utils.Utils.CommonColumns.{bibID, nidHash}
 
 
 object Aggregate {
@@ -41,8 +41,8 @@ object Aggregate {
       .getInputColumns
 
 
-    def getSource(name: String, featureTableMap: Map[String, List[String]], index: Int, indices: Seq[Int], maxRange: Int, allNeededCols: Seq[String], nidHash: String): DataFrame = {
-      val commonCols = allNeededCols ++ Seq(if (name == "PackagePurchase" || name == "HandsetPrice" || name == "Arpu" || name == "BankInfo" || name == "BankInfoGroupBy") "fake_ic_number" else nidHash)
+    def getSource(name: String, featureTableMap: Map[String, List[String]], index: Int, indices: Seq[Int], maxRange: Int, allNeededCols: Seq[String], bibID: String): DataFrame = {
+      val commonCols = allNeededCols ++ Seq(if (name == "PackagePurchase" || name == "HandsetPrice" || name == "Arpu" || name == "BankInfo" || name == "BankInfoGroupBy") "fake_ic_number" else bibID)
       val reader = selectReader(name, featureTableMap)
       selectCols(setTimeRange(reader)(indices, maxRange))(commonCols.distinct)
     }
@@ -63,7 +63,7 @@ object Aggregate {
       }
     }
 
-    val source = getSource(name, featureTableMap, index, indices, maxRange, allNeededCols, nidHash)
+    val source = getSource(name, featureTableMap, index, indices, maxRange, allNeededCols, bibID)
     val result = transformOutput(name, source, outputColumns, aggregator)
     result
   }

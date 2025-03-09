@@ -9,7 +9,7 @@ import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions.{col, expr, lit, to_date, to_timestamp, unix_timestamp}
 import org.apache.spark.sql.types.IntegerType
 import task.FeatureMaker.index
-import utils.Utils.CommonColumns.{month_index, nidHash}
+import utils.Utils.CommonColumns.{bibID, month_index, nidHash}
 import utils.Utils.monthIndexOf
 
 object DataReader {
@@ -38,10 +38,11 @@ object DataReader {
       case "user_info" =>
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
         val user = spark.read.parquet(appConfig.getString("Path.UserInfo"))
-          .filter(col(nidHash).isNotNull)
-          .repartition(300)
+          .filter(col(bibID).isNotNull)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
+          .repartition(300)
+          .drop("date_key")
         user
     }
   }
@@ -68,7 +69,7 @@ object DataReader {
       case "cdr" =>
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
         spark.read.parquet(appConfig.getString("Path.CDR"))
-          .filter(col(nidHash).isNotNull)
+          .filter(col(bibID).isNotNull)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
           .repartition(300)
@@ -166,7 +167,7 @@ object DataReader {
       case "recharge" =>
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
         val rech = spark.read.parquet(appConfig.getString("Path.Recharge"))
-          .filter(col(nidHash).isNotNull)
+          .filter(col(bibID).isNotNull)
           .withColumn("recharge_dt", to_timestamp(col("recharge_dt"), "yyyyMMdd' 'HH:mm:ss"))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))

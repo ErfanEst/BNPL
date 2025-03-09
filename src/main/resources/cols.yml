@@ -3,15 +3,15 @@ aggregation:
   - name: Package
     tables: ["package"]
     features:
-      count_distinct_offercode: [1]
-      count_distinct_offername: [1]
-      count_packages: [1]
-      sum_offer_amount: [1]
-      ratio_offeramount_zero: [1]
-      sum_data_MB: [1]
-      mean_package_period: [1]
-      max_package_period: [1]
-      min_package_period: [1]
+      count_distinct_offercode: [1, 2]
+      count_distinct_offername: [1, 2]
+      count_packages: [1, 2]
+      sum_offer_amount: [1, 2]
+      ratio_offeramount_zero: [1, 2]
+      sum_data_MB: [1, 2]
+      mean_package_period: [1, 2]
+      max_package_period: [1, 2]
+      min_package_period: [1, 2]
 
   - name: CDR
     tables: ["cdr"]
@@ -37,26 +37,29 @@ aggregation:
       min_time_interval_gprs: [1, 2]
       max_time_interval_gprs: [1, 2]
 
-      sms_sum_weekend: [1, 2]
-      voice_sum_weekend: [1, 2]
-      call_duration_sum_weekend: [1, 2]
+#      sms_sum_weekend: [1, 2]
+#      voice_sum_weekend: [1, 2]
+#      call_duration_sum_weekend: [1, 2]
 
-      ratio_weekend_sms: [1, 2]
-      ratio_weekend_call_duration: [1, 2]
-      ratio_weekend_voice: [1, 2]
+      ratio_weekend_sms_count: [1, 2]
+      ratio_weekend_call_duration_sum: [1, 2]
+      ratio_weekend_voice_count: [1, 2]
       ratio_weekend_gprs_usage: [1, 2]
 
   - name: UserInfo
     tables: ["user_info"]
     features:
-      count_postpaid: [1]
-      count_prepaid: [1]
-      max_bib_age: [1]
-      min_bib_age: [1]
-      mean_bib_age: [1]
-      mean_account_balance: [1]
+      postpaid: [1]
+      bib_age: [1]
+      abstat_ACTIVE: [1]
+      abstat_ERASED: [1]
+      abstat_HARD: [1]
+      abstat_OTHER: [1]
+      abstat_READY TO ACTIVATE SOFT: [1]
+      abstat_READY TO ACTIVE: [1]
+      abstat_SOFT: [1]
       max_account_balance: [1]
-      min_account_balance: [1]
+
 
   - name: PackagePurchase
     tables: ["package_purchase"]
@@ -129,16 +132,15 @@ aggregation:
   - name: Recharge
     tables: ['recharge']
     features:
-      count_recharge: [2]
-      count_afternoon_recharges: [2]
-      ratio_afternoon_recharge: [2]
-      max_recharge: [2]
-      min_recharge: [2]
-      mean_recharge: [2]
-      sum_recharge: [2]
-      balance_max: [2]
-      mean_balance_before_recharge: [2]
-      ratio_weekend_recharge: [2]
+      count_recharge: [1, 2]
+      ratio_afternoon_recharge: [1, 2]
+      max_recharge: [1, 2]
+      min_recharge: [1, 2]
+      mean_recharge: [1, 2]
+      sum_recharge: [1, 2]
+      balance_max: [1, 2]
+      mean_balance_before_recharge: [1, 2]
+      ratio_weekend_recharge: [1, 2]
 
 
 

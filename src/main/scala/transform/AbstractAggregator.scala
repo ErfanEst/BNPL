@@ -5,7 +5,7 @@ import core.Core.{IndexedColumn, RangedCol}
 import org.apache.spark.ml.feature.CountVectorizerModel
 import org.apache.spark.sql.{Column, DataFrame, Dataset}
 import org.apache.spark.sql.functions.{col, expr, lit}
-import utils.Utils.CommonColumns.{month_index, nidHash}
+import utils.Utils.CommonColumns.{bibID, month_index, nidHash}
 import utils.Utils.getLeafNeededColumns
 import org.apache.spark.ml.param.IntParam
 import org.apache.spark.sql.catalyst.dsl.expressions.{DslAttr, StringToAttributeConversionHelper}
@@ -69,7 +69,7 @@ abstract class AbstractAggregator extends AbstractTransformer{
 
     listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-      .groupBy(nidHash)
+      .groupBy(bibID)
       .pivot(month_index, $(_indices))
       .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
@@ -110,8 +110,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
       .join(siteTypeMode, Seq("fake_ic_number"), "left")
       .join(flagSimTierMode, Seq("fake_ic_number"), "left")
       .join(genderMode, Seq("fake_ic_number"), "left")
-
-    arpuCustomerWithJoins.printSchema()
 
     arpuCustomerWithJoins
   }
@@ -223,7 +221,7 @@ abstract class AbstractAggregator extends AbstractTransformer{
 
     listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-      .groupBy(nidHash)
+      .groupBy(bibID)
       .pivot(month_index, $(_indices))
       .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)

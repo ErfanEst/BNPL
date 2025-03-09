@@ -3,7 +3,7 @@ package task
 import core.Core.{Conf, aggregationColsYaml, appConfig}
 import org.apache.spark.sql.DataFrame
 import transform.Aggregate.aggregate
-import utils.Utils.CommonColumns.nidHash
+import utils.Utils.CommonColumns.{bibID, nidHash}
 import utils.Utils.monthIndexOf
 
 object FeatureMaker {
@@ -24,11 +24,11 @@ object FeatureMaker {
 //    val name = opts.name()
 
 //    val opts = new Conf(args)
-    index = 16842
+    index = 16846
     val indices = index until index - 1 by - 1
-    val name = "Recharge"
+    val name = "Package"
 
-//    println(monthIndexOf("2024-06-09"))
+
 
     name match {
       case "HandsetPrice" =>
@@ -106,13 +106,15 @@ object FeatureMaker {
 
       case _ =>
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        println("point 1")
+        println(outputColumns)
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
         println("The data frame was created successfully...")
 
         val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq(nidHash), "full_outer")
+          df1.join(df2, Seq(bibID), "full_outer")
         }
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
         println("Task finished successfully.")

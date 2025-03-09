@@ -12,14 +12,17 @@ object UserInfo extends DefaultParamsReadable[UserInfo] {
 class UserInfo(override val uid: String) extends AbstractAggregator {
 
   override def aggregator(name: String): Column = name match {
-    case "count_postpaid" => countDistinct(when(col("contract_type_v") === "N", col("bib_id")))
-    case "count_prepaid" => countDistinct(when(col("contract_type_v") === "P", col("bib_id")))
-    case "max_bib_age" => max("normalized_bib_age")
-    case "min_bib_age" => min("normalized_bib_age")
-    case "mean_bib_age" => mean("normalized_bib_age")
-    case "mean_account_balance" => mean("normalized_account_balance")
+    case "postpaid" => max(when(col("contract_type_v") === "N", lit(1)).otherwise(lit(0)))
+//    case "bib_age" =>
+    case "abstat_ACTIVE" => max(when(col("ability_status") === "ACTIVE", lit(1)).otherwise(lit(0)))
+    case "abstat_ERASED" => max(when(col("ability_status") === "ERASED", lit(1)).otherwise(lit(0)))
+    case "abstat_HARD" => max(when(col("ability_status") === "HARD", lit(1)).otherwise(lit(0)))
+    case "abstat_OTHER" => max(when(col("ability_status") === "OTHER", lit(1)).otherwise(lit(0)))
+    case "abstat_READY TO ACTIVATE SOFT" => max(when(col("ability_status") === "READY TO ACTIVATE SOFT", lit(1)).otherwise(lit(0)))
+    case "abstat_READY TO ACTIVE" => max(when(col("ability_status") === "READY TO ACTIVE", lit(1)).otherwise(lit(0)))
+    case "abstat_SOFT" => max(when(col("ability_status") === "SOFT", lit(1)).otherwise(lit(0)))
     case "max_account_balance" => max("normalized_account_balance")
-    case "min_account_balance" => min("normalized_account_balance")
+    case "bib_age" => max("normalized_bib_age")
   }
 
   override def listNeedBeforeTransform: Seq[String] = Seq(
