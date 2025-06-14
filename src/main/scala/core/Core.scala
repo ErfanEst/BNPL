@@ -51,17 +51,40 @@ object Core {
     }
   }
 
-  class IndexedColumn(val index: Int, val rangedName: String)
+//  class IndexedColumn(val index: Int, val rangedName: String)
+  //
+//   object IndexedColumn {
+//    def apply(index: Int, name: String): String = name  // ✅ No more prefix
+//
+//    def unapply(column: String): IndexedColumn = {
+//      val seq = column.split('_')
+//      new IndexedColumn(seq.head.toInt, seq.tail.mkString("_"))
+//    }
+//  }
+
+  case class IndexedColumn(index: Int, name: String)
 
   object IndexedColumn {
-    def apply(index: Int, name: String): String =
-      index + "_" + name
+    def apply(index: Int, name: String): String = s"${index}_$name"
 
-    def unapply(column: String): IndexedColumn = {
-      val seq = column.split('_')
-      new IndexedColumn(seq.head.toInt, seq.tail.mkString("_"))
+    def unapply(column: String): Option[(Int, String)] = {
+      val parts = column.split("_", 2)
+      if (parts.length == 2 && parts(0).forall(_.isDigit))
+        Some((parts(0).toInt, parts(1)))
+      else
+        None
     }
   }
+
+  //  object IndexedColumn {
+//    def apply(index: Int, name: String): String =
+//      index + "_" + name
+//
+//    def unapply(column: String): IndexedColumn = {
+//      val seq = column.split('_')
+//      new IndexedColumn(seq.head.toInt, seq.tail.mkString("_"))
+//    }
+//  }
 
   object SourceCol {
     private def columnsExtractor(table: String): List[String] = {

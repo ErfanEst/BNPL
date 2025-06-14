@@ -2,8 +2,9 @@ package task
 
 import core.Core.{Conf, aggregationColsYaml, appConfig}
 import org.apache.spark.sql.DataFrame
+import org.rogach.scallop.{ScallopConf, ScallopOption}
 import transform.Aggregate.aggregate
-import utils.Utils.CommonColumns.{bibID, nidHash}
+import utils.Utils.CommonColumns.{bibID, month_index, nidHash}
 import utils.Utils.monthIndexOf
 
 object FeatureMaker {
@@ -12,25 +13,25 @@ object FeatureMaker {
 
   def main(args: Array[String]): Unit = {
 
+
     val startTime = System.currentTimeMillis()
     println(s"Program started at: ${new java.util.Date(startTime)}")
 
-//    println(monthIndexOf("2024-09-10"))
+    object Opts extends ScallopConf(args) {
+      val date: ScallopOption[String] = opt[String](required = true, descr = "Date in the format yyyy-MM-dd")
+      val name: ScallopOption[String] = opt[String](required = true, descr = "Name of the aggregation")
+      verify()
+    }
 
+    index = monthIndexOf(Opts.date())
 
-//    val opts = new Conf(args)
-//    index = opts.date()
-//    val indices = index until index - 1 by - 1
-//    val name = opts.name()
-
-//    val opts = new Conf(args)
-    index = 16846
     val indices = index until index - 1 by - 1
-    val name = "Package"
+    val name = Opts.name()
 
-
+    println(index, indices, name)
 
     name match {
+
       case "HandsetPrice" =>
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
         val aggregatedDataFrames: Seq[DataFrame] =
@@ -39,58 +40,59 @@ object FeatureMaker {
         println("The data frame was created successfully...")
 
         val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq("fake_ic_number"), "full_outer")
+          df1.join(df2, Seq("fake_msisdn"), "full_outer")
+        }
+
+        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+        println("Task finished successfully.")
+
+      case "HandsetPriceBrands" =>
+        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        println("The data frame was created successfully...")
+
+        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+          df1.join(df2, Seq("fake_msisdn", "handset_brand"), "full_outer")
         }
 
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
         println("Task finished successfully.")
 
       case "BankInfo" =>
+
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
         println("The data frame was created successfully...")
 
         val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq("fake_ic_number"), "full_outer")
+          df1.join(df2, Seq("fake_msisdn"), "full_outer")
         }
 
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
         println("Task finished successfully.")
 
-
-//      case "BankInfo" =>
-//        println("point 0")
-//        val outputColumnsGroupBy = reverseMapOfList(aggregationColsYaml.filter(_.name == "BankInfoGroupBy").map(_.features).flatMap(_.toList).toMap)
-//        val aggregatedDataFramesGroupBy: Seq[DataFrame] =
-//          aggregate(name = "BankInfoGroupBy", indices = indices, outputColumns = outputColumnsGroupBy, index = index)
-//
-//        println("The data frame was created successfully...")
-//
-//        val combinedDataFrameGroupBy = aggregatedDataFramesGroupBy.reduce { (df1, df2) =>
-//          df1.join(df2, Seq("fake_ic_number"), "full_outer")
-//        }
-//
-//        combinedDataFrameGroupBy.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-//        println("Task finished successfully.")
-
       case "PackagePurchase" =>
+
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
         val aggregatedDataFrames: Seq[DataFrame] =
             aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
         println("The data frame was created successfully...")
 
-
         val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq("fake_ic_number", "service_type"), "full_outer")
+          df1.join(df2, Seq("fake_msisdn"), "full_outer")
         }
 
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
         println("Task finished successfully.")
 
       case "Arpu" =>
+
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
@@ -98,16 +100,35 @@ object FeatureMaker {
         println("The data frame was created successfully...")
 
         val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq("fake_ic_number"), "full_outer")
+          df1.join(df2, Seq("fake_msisdn"), "full_outer")
         }
 
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
         println("Task finished successfully.")
 
-      case _ =>
+      case "ArpuChanges" =>
+
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
-        println("point 1")
         println(outputColumns)
+        println(",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,")
+        println(name)
+        Thread.sleep(3000)
+
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        println("The data frame was created successfully...")
+
+        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+          df1.join(df2, Seq("fake_msisdn"), "full_outer")
+        }
+
+        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+        println("Task finished successfully.")
+
+      case "Recharge" =>
+
+        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
@@ -116,6 +137,69 @@ object FeatureMaker {
         val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
           df1.join(df2, Seq(bibID), "full_outer")
         }
+
+        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+        println("Task finished successfully.")
+
+
+      case "LoanAssign" =>
+
+        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        println("The data frame was created successfully...")
+
+        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+          df1.join(df2, Seq(bibID), "full_outer")
+        }
+
+        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+        println("Task finished successfully.")
+
+
+      case "LoanRec" =>
+
+        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        println("The data frame was created successfully...")
+
+        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+          df1.join(df2, Seq(bibID), "full_outer")
+        }
+
+        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+        println("Task finished successfully.")
+
+      case "CDR" =>
+        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        println("The data frame was created successfully...")
+
+        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+          df1.join(df2, Seq(bibID), "full_outer")
+        }
+
+        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+        println("Task finished successfully.")
+
+      case _ =>
+        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        println("The data frame was created successfully...")
+
+        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+
+          df1.join(df2, Seq("fake_msisdn"), "full_outer")
+        }
+
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
         println("Task finished successfully.")
     }
@@ -135,7 +219,6 @@ object FeatureMaker {
           }
       }
   }
-
 }
 
 

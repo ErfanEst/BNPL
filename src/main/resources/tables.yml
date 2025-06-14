@@ -9,7 +9,7 @@ parquet_tables:
     cols : ["dt_batch_id", "create_timestamp", "bib_id", "fake_id", "nid_hash", "contract_type_v", "gender_v", "registration_date_d", "date_of_birth_d", "ability_status", "account_balance", "base_station_cd", "siteid", "date_key"]
 
   - name:  "package_purchase"
-    cols: ["dt_batch_id", "create_time_stamp", "fake_msisdn", "fake_ic_number", "service_type", "cnt", "amount", "month_id", "source_system_cd"]
+    cols: ["dt_batch_id", "create_time_stamp", "fake_msisdn", "fake_ic_number", "service_type", "cnt", "amount", "month_id", "source_system_cd", "date_key"]
 
   - name: "handset_price"
     cols: ["fake_ic_number", "dt_batch_id", "create_timestamp", "fake_msisdn", "handset_model", "handset_brand", "handset_type", "cnt_of_days", "month_id", "date_key", "month_index"]
@@ -17,11 +17,27 @@ parquet_tables:
   - name: "arpu"
     cols: ["dt_batch_id", "create_timestamp", "month_id", "fake_msisdn", "fake_ic_number", "contract_type", "registration_date", "gender", "age", "modem_model", "flag_sim_tier", "site_id", "site_type", "res_com_score", "voice_revenue", "gprs_revenue", "sms_revenue", "subscription_revenue", "date_key"]
 
+  - name: "arpu_changes"
+    cols: [ "dt_batch_id", "create_timestamp", "month_id", "fake_msisdn", "fake_ic_number", "contract_type", "registration_date", "gender", "age", "modem_model", "flag_sim_tier", "site_id", "site_type", "res_com_score", "voice_revenue", "gprs_revenue", "sms_revenue", "subscription_revenue", "date_key" ]
+
   - name: "customer_person_type_bank_info"
     cols: ['fake_ic_number', 'dt_batch_id', 'create_timestamp', 'month_id', 'fake_msisdn', 'bank_name', 'sms_cnt', 'date_key']
 
   - name: "recharge"
     cols: ["dt_batch_id", "create_timestamp", "bib_id", "fake_id", "nid_hash", "recharge_value_amt", "recharge_dt", "origin_host_nm", "account_balance_before_amt", "account_balance_after_amt", "date_key"]
+
+  - name: "loan_assign"
+    cols: ["dt_batch_id", "create_timestamp", "bib_id", "fake_id", "nid_hash", "loan_id", "loan_amount", "date_timestamp", "date_key"]
+
+  - name: "loan_recovery"
+    cols: ["dt_batch_id", "create_timestamp", "bib_id", "fake_id", "nid_hash", "loan_id", "loan_amount", "hsdp_recovery", "date_timestamp", "date_key"]
+
+  - name: "domestic_travel"
+    cols: [ "dt_batch_id", "create_timestamp", "month_id", "fake_msisdn", "fake_ic_number", "sum_travel", "date_key" ]
+
+  - name: "post_paid"
+    cols: ["dt_batch_id", "create_timestamp", "fake_msisdn", "fake_ic_number", "credit_limit", "deposit_amt_n", "outstanding_balance", "unbilled_amount", "last_status", "last_payment_date", "avl_credit_limit", "min_old_cl", "max_new_cl", "record_count", "suspension_flag", "suspension_reason", "month_id", "date_key", "bib_id"]
+
 
 
 

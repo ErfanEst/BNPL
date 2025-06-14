@@ -2,7 +2,7 @@ package extract
 
 import core.Core.SourceCol.Arpu.{averageAge, flagSimTierMode, genderMode, mostFrequentFlagSimTier, mostFrequentGender, siteTypeMode}
 import core.Core.{appConfig, spark}
-import org.apache.spark.ml.feature.CountVectorizerModel
+import org.apache.spark.ml.feature.{CountVectorizer, CountVectorizerModel}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.expressions.Window
@@ -10,6 +10,7 @@ import org.apache.spark.sql.functions.{col, expr, lit, to_date, to_timestamp, un
 import org.apache.spark.sql.types.IntegerType
 import task.FeatureMaker.index
 import utils.Utils.CommonColumns.{bibID, month_index, nidHash}
+import utils.Utils.arpuDetails.other_sites
 import utils.Utils.monthIndexOf
 
 object DataReader {
@@ -23,14 +24,169 @@ object DataReader {
   }
 
   private val readTable: PartialFunction[String, DataFrame] = {
+
     case x if List("package").contains(x) => readPackage(x, index)
     case x if List("cdr").contains(x) => readCDR(x, index)
+    case x if List("domestic_travel").contains(x) => readDomestic(x, index)
     case x if List("user_info").contains(x) => readUserInfo(x, index)
     case x if List("package_purchase").contains(x) => readPackagePurchase(x, index)
+    case x if List("package_purchase_extras").contains(x) => readPackagePurchase(x, index)
+    case x if List("package_purchase_avgs").contains(x) => readPackagePurchase(x, index)
     case x if List("handset_price").contains(x) => readHandSetPrice(x, index)
+    case x if List("handset_price_brands").contains(x) => readHandSetPrice(x, index)
     case x if List("arpu").contains(x) => readArpu(x, index)
+    case x if List("arpu_changes").contains(x) => readArpuChanges(x, index)
     case x if List("customer_person_type_bank_info").contains(x) => readBankInfo(x, index)
     case x if List("recharge").contains(x) => readRecharge(x, index)
+    case x if List("loan_assign").contains(x) => readLoanAssign(x, index)
+    case x if List("loan_rec").contains(x) => readLoanRec(x, index)
+    case x if List("post_paid").contains(x) => readPostPaid(x, index)
+  }
+
+  private val readPostPaid: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+    fileType match {
+      case "post_paid" =>
+
+        val w = Window.partitionBy("fake_msisdn").orderBy(month_index)
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+        val postPaid = spark.read.parquet(appConfig.getString("Path.PostPaid"))
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
+//          .na.fill(Map(
+//            "credit_limit" -> 0.0,
+//            "deposit_amt_n" -> 0.0
+//          ))
+          .dropDuplicates()
+          .withColumn("row_number", row_number().over(w))
+
+        postPaid.filter(col("fake_msisdn") === "018B5E24A97654D3029C4CE8DAC57364").show(false)
+        postPaid.printSchema()
+        Thread.sleep(10000)
+
+        postPaid
+
+    }
+  }
+
+  private val readDomestic: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+    fileType match {
+      case "domestic_travel" =>
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+        val domestic = spark.read.parquet(appConfig.getString("Path.DomesticTravel"))
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
+
+
+//          .drop("date_key")
+
+        domestic
+    }
+  }
+
+  /*
+    private val readPackagePurchaseExtras: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+      fileType match {
+        case "package_purchase" =>
+          val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+          val packagePurchaseExtras = spark.read.parquet(appConfig.getString("Path.PackagePurchase"))
+            .filter(col("amount") > lit(0) && col("cnt") > lit(0))
+            .withColumn(month_index, monthIndexOfUDF(col("date")))
+            .drop("date_key")
+
+          packagePurchaseExtras
+      }
+    }
+  */
+
+  private val readPackagePurchase: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+    fileType match {
+      case "package_purchase" =>
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+        val packagePurchase = spark.read.parquet(appConfig.getString("Path.PackagePurchase"))
+          .filter(col("amount") > lit(0) && col("cnt") > lit(0))
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
+
+          .drop("date_key")
+
+        packagePurchase.filter(col("service_type") === "Pay Bill").show()
+
+
+        packagePurchase
+    }
+  }
+
+  private val readLoanAssign: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+    fileType match {
+      case "loan_assign" =>
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+
+        val loanAssignDf = spark.read.parquet(appConfig.getString("Path.LoanAssign"))
+          .filter(col("bib_id").isNotNull)
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
+          .withColumn("dt", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
+          .withColumn("dt_sec", unix_timestamp(col("dt").cast("string")))
+          .withColumn("loan_id", col("loan_id").cast("long"))
+          .withColumn("loan_amount", col("loan_amount").cast("int"))
+          .drop("date_key")
+
+        loanAssignDf
+
+      case _ =>
+        throw new IllegalArgumentException(s"Unknown file type: $fileType")
+    }
+  }
+
+  private val readLoanRec: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+    fileType match {
+      case "loan_rec" =>
+
+        println("--- in the loan recovery")
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+
+        val recFeat = spark.read.parquet(appConfig.getString("Path.LoanRec"))
+          .filter(col("bib_id").isNotNull)
+          .withColumn("date_l", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date_l")))
+          .withColumn("dt_l", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
+          .withColumn("dt_sec_l", unix_timestamp(col("dt_l").cast("string")))
+          .withColumn("loan_id", col("loan_id").cast("long"))
+          .withColumn("loan_amount", col("loan_amount").cast("int"))
+          .drop("date_key")
+          .groupBy("loan_id", bibID).agg(sum("hsdp_recovery").alias("recovered_amt"), max("dt_sec_l").alias("recovered_time"))
+
+        println("--- recFeat created")
+        recFeat.printSchema()
+
+        val loanAssignDf = spark.read.parquet(appConfig.getString("Path.LoanAssign"))
+          .filter(col("bib_id").isNotNull)
+          .withColumn("date_r", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date_r")))
+          .withColumn("dt_r", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
+          .withColumn("dt_sec_r", unix_timestamp(col("dt_r").cast("string")))
+          .withColumn("loan_id", col("loan_id").cast("long"))
+          .withColumn("loan_amount", col("loan_amount").cast("int"))
+          .drop("date_key")
+
+        println("--- loanAssignDf created")
+        loanAssignDf.printSchema()
+
+        val recoveredLoan = recFeat
+          .drop(bibID)
+          .drop(nidHash)
+          .join(loanAssignDf, Seq("loan_id"), "right").na.fill(Map("recovered_amt" -> 0))
+
+        println("--- recoveredLoan created")
+        recoveredLoan.printSchema()
+
+        recoveredLoan.show(10, truncate = false)
+
+        recoveredLoan
+
+      case _ =>
+        throw new IllegalArgumentException(s"Unknown file type: $fileType")
+    }
   }
 
   private val readUserInfo: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
@@ -77,19 +233,6 @@ object DataReader {
     }
   }
 
-  private val readPackagePurchase: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
-    fileType match {
-      case "package_purchase" =>
-        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-        val packagePurchase = spark.read.parquet(appConfig.getString("Path.PackagePurchase"))
-          .filter(col("amount") > lit(0) && col("cnt") > lit(0))
-          .withColumn("month_index", monthIndexOfUDF(col("date")))
-          .drop("date_key")
-
-        packagePurchase
-    }
-  }
-
   private val readHandSetPrice: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "handset_price" =>
@@ -110,57 +253,109 @@ object DataReader {
         handsetPrice = handsetPrice.filter(col("handset_brand").isNotNull)
         handsetPrice = handsetPrice.filter(col("cnt_of_days").isNotNull)
 
-        handsetPrice.show(100, truncate = false)
-
         handsetPrice
+
+    case "handset_price_brands" =>
+      val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+      var handsetPrice = spark.read.parquet(appConfig.getString("Path.HandsetPrice"))
+        .withColumn("handset_brand_array", array("handset_brand"))
+        .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+        .withColumn(month_index, monthIndexOfUDF(col("date")))
+        .drop("date_key")
+
+      handsetPrice = handsetPrice.dropDuplicates()
+      handsetPrice = handsetPrice.filter(col("handset_brand").isNotNull)
+      handsetPrice = handsetPrice.filter(col("cnt_of_days").isNotNull)
+
+      handsetPrice
     }
   }
 
   private val readArpu: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "arpu" =>
+
+        val w = Window.partitionBy("fake_msisdn").orderBy(month_index)
+        val wCount = Window.partitionBy("fake_msisdn")
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-        val msisdn_metrics = spark.read.parquet(appConfig.getString("Path.Arpu"))
+        val arpu = spark.read.parquet(appConfig.getString("Path.Arpu"))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
           .drop("month_id")
           .drop("date_key")
-          .repartition(300)
-          .groupBy("fake_msisdn", "fake_ic_number", month_index)
-          .agg(
-            when(last("gender") === "F", 1).otherwise(0).alias("gender"),
-            max("age").alias("age"),
-            last("site_type").alias("site_type"),
-            max("res_com_score").alias("res_com_score"),
-            max("voice_revenue").alias("voice_revenue"),
-            last("flag_sim_tier").alias("flag_sim_tier"),
-            max("gprs_revenue").alias("gprs_revenue"),
-            max("sms_revenue").alias("sms_revenue"),
-            max("subscription_revenue").alias("subscription_revenue")
-          ).na.fill(Map(
-            "voice_revenue" -> 0,
-            "gprs_revenue" -> 0,
-            "sms_revenue" -> 0,
-            "subscription_revenue" -> 0
-          ))
-        calculateCustomerLevelMetrics(msisdn_metrics)
+          .dropDuplicates()
+          .na.fill(0)
+          .withColumn("dense_rank", dense_rank().over(w))
+          .withColumn("count_dense_rank", size(collect_set("dense_rank").over(wCount)))
 
-        msisdn_metrics
+        arpu.filter(col("fake_msisdn") === "000A88BEFAE546481D231DD20BED09AC").show(false)
+        Thread.sleep(3000)
+
+        arpu
+    }
+  }
+
+  private val readArpuChanges: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+
+    fileType match {
+      case "arpu_changes" =>
+
+        val w = Window.partitionBy("fake_msisdn").orderBy(month_index)
+
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+        val arpu = spark.read.parquet(appConfig.getString("Path.Arpu"))
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
+          .drop("month_id")
+          .drop("date_key")
+          .dropDuplicates()
+          .withColumn("dense_rank", dense_rank().over(w))
+
+        arpu
     }
   }
 
   private val readBankInfo: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+
     fileType match {
       case "customer_person_type_bank_info" =>
+
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-        val user = spark.read.parquet(appConfig.getString("Path.BankInfo"))
-          .filter(col("fake_ic_number").isNotNull)
+
+        val iranianBanks = Seq(
+          "mellat", "tejarat", "keshavarzi", "refah", "melli",
+          "pasargad", "maskan", "resalat", "ayandeh", "parsian",
+          "enbank", "sina", "iz"
+        )
+
+        val extractBankUDF = udf { name: String =>
+          if (name == null) Seq.empty[String]
+          else {
+            val normalized = name.toLowerCase.replaceAll("[^a-z0-9\\s]", "")
+            iranianBanks.filter(bank => normalized.contains(bank))
+          }
+        }
+
+        val rawBankInfo = spark.read.parquet(appConfig.getString("Path.BankInfo"))
+          .filter(col("fake_msisdn").isNotNull)
+
+        val bankInfo = rawBankInfo
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
-          .repartition(300)
-        user
+          .withColumn("matched_banks", extractBankUDF(col("bank_name")))
+          .filter(size(col("matched_banks"))> lit(0))
+        //.repartition(300) // Only if needed based on downstream
+
+        val cvModel = new CountVectorizerModel(iranianBanks.toArray)
+          .setInputCol("matched_banks")
+          .setOutputCol("bank_vector")
+
+        val vectorized = cvModel.transform(bankInfo)
+
+        vectorized
     }
   }
+
 
   private val readRecharge: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {

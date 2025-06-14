@@ -31,8 +31,6 @@ class Recharge(override val uid: String) extends AbstractAggregator {
 
   def listProducedBeforeTransform: Seq[(String, Column)] = {
 
-    val windowSpec = Window.partitionBy(nidHash, "wd_de")
-
     Seq(
       "recharge_hour" -> when(col(rechargeValueAmt) > lit(0), hour(col(rechargeDt))),
       "afternoon" -> when(col("recharge_hour") > lit(15), lit(1)).otherwise(lit(0)),
