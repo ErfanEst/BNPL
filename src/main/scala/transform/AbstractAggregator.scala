@@ -37,18 +37,11 @@ abstract class AbstractAggregator extends AbstractTransformer{
 
   protected def explodeForIndices(dataFrame: DataFrame): DataFrame = {
     if ($(_indices).length == 1) {
-//      println("this is explodeForIndices in the IF:" + $(_indices).mkString("Array(", ", ", ")"))
-//      Thread.sleep(1000)
       val monthIndex = $(_indices).head
-//      println(monthIndex)
-//      println(monthIndex - $(_range))
-//      Thread.sleep(5000)
       dataFrame
         .where(col(month_index) > monthIndex - $(_range))
         .withColumn(month_index, lit(monthIndex))
     } else {
-//      println("this is explodeForIndices in the ELSE:" + $(_indices).mkString("Array(", ", ", ")"))
-//      Thread.sleep(1000)
       val shiftedMonths = functions.transform(lit(Array.range(0, $(_range))), _ + col(month_index))
       dataFrame.withColumn(month_index, explode(filter(shiftedMonths, _.isin($(_indices): _*))))
     }
@@ -69,6 +62,7 @@ abstract class AbstractAggregator extends AbstractTransformer{
       case "LoanRec" => transformLoanRec(dataset)
       case "DomesticTravel" => transformDomestic(dataset)
       case "PostPaid" => transformPostPaid(dataset)
+      case "CreditManagement" => transformCreditManagement(dataset)
       case _ => transform(dataset)
     }
   }
@@ -80,14 +74,49 @@ abstract class AbstractAggregator extends AbstractTransformer{
       listProducedGrouped.getOrElse(false, Map())
         .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
 
-    listProducedGrouped.getOrElse(true, Map())
+    val result = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
       .groupBy(bibID)
       .pivot(month_index, $(_indices))
       .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
+
+    val renamedDf = result.columns.foldLeft(result) { (df, colName) =>
+      IndexedColumn.unapply(colName) match {
+        case Some((_, name)) => df.withColumnRenamed(colName, name)
+        case None            => df
+      }
+    }
+
+    renamedDf
   }
-  /** Second transformation logic */
+
+  def transformCreditManagement(dataset: Dataset[_]): DataFrame = {
+    val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
+
+    val nonMonthIndexDependentDf =
+      listProducedGrouped.getOrElse(false, Map())
+        .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
+
+    val temp = listProducedGrouped.getOrElse(true, Map())
+      .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
+      .groupBy("fake_msisdn")
+      .pivot(month_index, $(_indices))
+      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
+      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
+
+
+    val renamedDf = temp.columns.foldLeft(temp) { (df, colName) =>
+      IndexedColumn.unapply(colName) match {
+        case Some((_, name)) => df.withColumnRenamed(colName, name)
+        case None            => df
+      }
+    }
+
+    val result = dynamicGroupBy(renamedDf)
+    result
+  }
+
   def transformPackagePurchase(dataset: Dataset[_]): DataFrame = {
 
     val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
@@ -233,7 +262,7 @@ abstract class AbstractAggregator extends AbstractTransformer{
     val result = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
 
-    result.filter(col("fake_msisdn") === "000A88BEFAE546481D231DD20BED09AC").show(false)
+    result.filter(col("fake_msisdn") === "0DA44CED95D0416B5594951C27FD1370").show(false)
     Thread.sleep(5000)
 
     val b = result
@@ -242,7 +271,7 @@ abstract class AbstractAggregator extends AbstractTransformer{
       .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
 
-    b.filter(col("fake_msisdn") === "000A88BEFAE546481D231DD20BED09AC").show(false)
+    b.filter(col("fake_msisdn") === "0CA5143503557C9879D14DE325D710A3").show(false)
     Thread.sleep(5000)
 
     val renamedDf = b.columns.foldLeft(b) { (df, colName) =>
@@ -322,13 +351,12 @@ abstract class AbstractAggregator extends AbstractTransformer{
 
   private def transformBankInfoGroupBy(dataset: Dataset[_]): DataFrame = {
 
-    val windowSpec = Window.partitionBy("fake_msisdn", "bank_name")
+    val windowSpec = Window.partitionBy("fake_msisdn", "bank_name", month_index)
+    val aggDf = dataset
+      .withColumn("total_sms_count", sum(col("sms_cnt")).over(windowSpec))
 
-    val aggDf = dataset.withColumn("total_sms_count", sum(col("sms_cnt")).over(windowSpec))
-
-
-    aggDf.filter(col("fake_msisdn") === "0B48CB69FF1336F62E044A3B3F4DD5D9").show(false)
-    Thread.sleep(5000)
+    aggDf.filter(col("fake_msisdn") === "E5C1BC698A695885E001EB00E868B243").show(1000)
+    Thread.sleep(10000)
 
     val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
 
@@ -338,12 +366,21 @@ abstract class AbstractAggregator extends AbstractTransformer{
 
     val BankInfo = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-      .groupBy("fake_msisdn")
-      .pivot(month_index, $(_indices))
-      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
+
+    BankInfo.filter(col("fake_msisdn") === "E5C1BC698A695885E001EB00E868B243").show(1000)
+    Thread.sleep(10000)
+
+    val before =  BankInfo.groupBy("fake_msisdn")
+
+    val temp =  before.pivot(month_index, $(_indices))
+
+    val b =  temp.agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
 
-    val renamedDf = BankInfo.columns.foldLeft(BankInfo) { (df, colName) =>
+    b.filter(col("fake_msisdn") === "E5C1BC698A695885E001EB00E868B243").show(1000)
+    Thread.sleep(10000)
+
+    val renamedDf = b.columns.foldLeft(b) { (df, colName) =>
       IndexedColumn.unapply(colName) match {
         case Some((_, name)) => df.withColumnRenamed(colName, name)
         case None            => df

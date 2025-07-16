@@ -41,6 +41,63 @@ object DataReader {
     case x if List("loan_assign").contains(x) => readLoanAssign(x, index)
     case x if List("loan_rec").contains(x) => readLoanRec(x, index)
     case x if List("post_paid").contains(x) => readPostPaid(x, index)
+    case x if List("credit_management").contains(x) => readCreditManagement(x, index)
+
+  }
+
+  private val readCreditManagement: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+    fileType match {
+      case "credit_management" =>
+
+        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+
+        val creditRaw = spark.read.parquet(appConfig.getString("Path.CreditManagement"))
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
+          .filter(col("credit_assigned_date") > "2024-12-16")
+          .dropDuplicates()
+
+        val maxMonthIndex = creditRaw.agg(max(month_index)).first().get(0)
+
+        val creditProcessed = creditRaw
+          .withColumn(month_index, lit(maxMonthIndex))
+          .filter(col("loan_status") =!= 3)
+          .withColumn(
+            "days_delay_new",
+            when(
+                col("days_delayed").isNull,
+                datediff(col("date"), col("installment_duedate"))
+              ).otherwise(col("days_delayed"))
+          ).withColumn(
+            "days_after_duedate",
+            datediff(col("date"), col("installment_duedate"))
+          )
+
+        val grouped = creditProcessed.groupBy("fake_msisdn", "installment_id").agg(max("days_delay_new").alias("days_delay_new"), max("days_delayed").alias("days_delayed"), max("days_after_duedate").alias("days_after_duedate"), max(month_index).alias("month_index"))
+
+        val result = grouped
+          .withColumn("debt_status_1",
+          when(col("days_after_duedate") <= 31 && col("days_delay_new") > 0 && (col("days_delay_new") === col("days_delayed")), 4)
+            .when(col("days_after_duedate") <= 31 && col("days_delay_new") > 0 && col("days_delayed").isNull, 2)
+            .when(col("days_after_duedate") <= 31 && col("days_delay_new") <= 0 && (col("days_delay_new") === col("days_delayed")), 3)
+            .when(col("days_after_duedate") <= 31 && col("days_delay_new") <= 0 && col("days_delayed").isNull, 1)
+            .otherwise(-1)
+        ).withColumn(
+          "debt_status_2",
+          when((col("days_after_duedate") <= 62) && col("days_delay_new") > 0 && (col("days_delay_new") === col("days_delayed")), 4)
+            .when((col("days_after_duedate") <= 62) && col("days_delay_new") > 0 && col("days_delayed").isNull, 2)
+            .when((col("days_after_duedate") <= 62) && col("days_delay_new") <= 0 && (col("days_delay_new") === col("days_delayed")), 3)
+            .when((col("days_after_duedate") <= 62) && col("days_delay_new") <= 0 && col("days_delayed").isNull, 1)
+            .otherwise(-1)
+        ).withColumn(
+            "terrible_debt_status",
+            when(col("days_after_duedate") >= 60 && col("days_delayed").isNull, 1)
+              .when(col("days_after_duedate") >= 60 && (col("days_after_duedate") - col("days_delayed") <= 31), 2)
+              .otherwise(-1)
+          )
+
+        result
+    }
   }
 
   private val readPostPaid: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
@@ -48,7 +105,9 @@ object DataReader {
       case "post_paid" =>
 
         val w = Window.partitionBy("fake_msisdn").orderBy(month_index)
+
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+
         val postPaid = spark.read.parquet(appConfig.getString("Path.PostPaid"))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -58,6 +117,25 @@ object DataReader {
 //          ))
           .dropDuplicates()
           .withColumn("row_number", row_number().over(w))
+
+        val changeOwnerships = spark.read.parquet("/home/erfan/Desktop/Change_ownership_list/drop_list_16846_16847")
+          .dropDuplicates("bib_id", "nid_hash")
+          .select("bib_id")
+          .distinct()
+
+        val postPaidFiltered = postPaid
+          .join(changeOwnerships,
+            postPaid("fake_msisdn") === changeOwnerships("bib_id"),
+            "left_anti")
+
+
+
+        val afterCount = postPaidFiltered.count()
+        println(s"After filtering (postPaidFiltered) count: $afterCount")
+        val beforeCount = postPaid.count()
+        println(s"Before filtering (postPaid) count: $beforeCount")
+        println(s"Dropped rows: ${beforeCount - afterCount}")
+        Thread.sleep(10000)
 
         postPaid.filter(col("fake_msisdn") === "018B5E24A97654D3029C4CE8DAC57364").show(false)
         postPaid.printSchema()
@@ -224,12 +302,26 @@ object DataReader {
     fileType match {
       case "cdr" =>
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-        spark.read.parquet(appConfig.getString("Path.CDR"))
+        val cdr = spark.read.parquet(appConfig.getString("Path.CDR"))
           .filter(col(bibID).isNotNull)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
           .repartition(300)
           .drop("date_key")
+
+        val changeOwnershipsPath = s"/home/erfan/Desktop/Change_ownership_list/drop_list_${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
+          .distinct()
+
+        val cdrFiltered = cdr
+          .join(changeOwnerships,
+            cdr("bib_id") === changeOwnerships(bibID),
+            "left_anti")
+          .filter(col(bibID).isNotNull)
+
+        cdrFiltered
     }
   }
 
@@ -288,7 +380,7 @@ object DataReader {
           .withColumn("dense_rank", dense_rank().over(w))
           .withColumn("count_dense_rank", size(collect_set("dense_rank").over(wCount)))
 
-        arpu.filter(col("fake_msisdn") === "000A88BEFAE546481D231DD20BED09AC").show(false)
+        arpu.filter(col("fake_msisdn") === "0CA5143503557C9879D14DE325D710A3").show(false)
         Thread.sleep(3000)
 
         arpu
@@ -329,7 +421,7 @@ object DataReader {
         )
 
         val extractBankUDF = udf { name: String =>
-          if (name == null) Seq.empty[String]
+          if (name == null || name.toLowerCase.trim.startsWith("v.")) Seq.empty[String]
           else {
             val normalized = name.toLowerCase.replaceAll("[^a-z0-9\\s]", "")
             iranianBanks.filter(bank => normalized.contains(bank))
@@ -339,18 +431,34 @@ object DataReader {
         val rawBankInfo = spark.read.parquet(appConfig.getString("Path.BankInfo"))
           .filter(col("fake_msisdn").isNotNull)
 
+        val changeOwnerships = spark.read.parquet("/home/erfan/Desktop/Change_ownership_list/drop_list_16848_16849")
+          .dropDuplicates("bib_id", "nid_hash")
+          .select("bib_id")
+          .distinct()
+
         val bankInfo = rawBankInfo
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
           .withColumn("matched_banks", extractBankUDF(col("bank_name")))
-          .filter(size(col("matched_banks"))> lit(0))
-        //.repartition(300) // Only if needed based on downstream
+          .filter(size(col("matched_banks")) > lit(0))
+
+        val bankInfoFiltered = bankInfo
+          .join(changeOwnerships,
+            bankInfo("fake_msisdn") === changeOwnerships("bib_id"),
+            "left_anti")
 
         val cvModel = new CountVectorizerModel(iranianBanks.toArray)
           .setInputCol("matched_banks")
           .setOutputCol("bank_vector")
 
-        val vectorized = cvModel.transform(bankInfo)
+        val vectorized = cvModel.transform(bankInfoFiltered)
+
+        val afterCount = bankInfoFiltered.count()
+        println(s"After filtering (bankInfoFiltered) count: $afterCount")
+        val beforeCount = bankInfo.count()
+        println(s"Before filtering (bankInfo) count: $beforeCount")
+        println(s"Dropped rows: ${beforeCount - afterCount}")
+//        Thread.sleep(10000)
 
         vectorized
     }

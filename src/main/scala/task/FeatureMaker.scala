@@ -4,6 +4,7 @@ import core.Core.{Conf, aggregationColsYaml, appConfig}
 import org.apache.spark.sql.DataFrame
 import org.rogach.scallop.{ScallopConf, ScallopOption}
 import transform.Aggregate.aggregate
+import org.apache.spark.sql.functions._
 import utils.Utils.CommonColumns.{bibID, month_index, nidHash}
 import utils.Utils.monthIndexOf
 
@@ -177,11 +178,41 @@ object FeatureMaker {
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
-
         println("The data frame was created successfully...")
 
         val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
           df1.join(df2, Seq(bibID), "full_outer")
+        }
+
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.cdr_features")
+        val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
+        val featureDefaults: Map[String, Any] = featureKeys.map { key =>
+          val value = featureDefaultsConfig.getAnyRef(key)
+          key -> value
+        }.toMap
+
+        var finalDF = combinedDataFrame
+        featureDefaults.foreach { case (colName, defaultValue) =>
+          if (finalDF.columns.contains(colName)) {
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
+          }
+        }
+
+        finalDF.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+        println("Task finished successfully with default values filled.")
+
+//        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+//        println("Task finished successfully.")
+
+      case "CreditManagement" =>
+        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        println("The data frame was created successfully...")
+
+        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+          df1.join(df2, Seq("fake_msisdn"), "full_outer")
         }
 
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")

@@ -76,16 +76,6 @@ object Core {
     }
   }
 
-  //  object IndexedColumn {
-//    def apply(index: Int, name: String): String =
-//      index + "_" + name
-//
-//    def unapply(column: String): IndexedColumn = {
-//      val seq = column.split('_')
-//      new IndexedColumn(seq.head.toInt, seq.tail.mkString("_"))
-//    }
-//  }
-
   object SourceCol {
     private def columnsExtractor(table: String): List[String] = {
       Core.cols(table)

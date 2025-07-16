@@ -19,30 +19,30 @@ class CDR(override val uid: String) extends AbstractAggregator {
   private val TimeGapGPRS = "_time_gap_gprs_"
 
   override def aggregator(name: String): Column = name match {
-    case "sms_count" => sum(col(SMSCount).cast("long"))
-    case "voice_count" => sum(col(VoiceCount).cast("long"))
+    case "sms_count" => coalesce(sum(col(SMSCount)), lit(0))
+    case "voice_count" => coalesce(sum(col(VoiceCount)), lit(0))
 
-    case "call_duration_sum" => sum(col(CallDuration).cast("double"))
-    case "gprs_usage_sum" => sum(col(GprsUsage).cast("double"))
+    case "call_duration_sum" => coalesce(sum(col(CallDuration)), lit(0))
+    case "gprs_usage_sum" => coalesce(sum(col(GprsUsage)), lit(0))
 
     case "sms_activedays" =>
-      countDistinct(when(col(SMSCount) > lit(0), col(dateKey))).cast("double")
+      countDistinct(when(col(SMSCount) > lit(0), col(dateKey)))
     case "voice_activedays" =>
-      countDistinct(when(col(VoiceCount) > lit(0), col(dateKey))).cast("double")
+      countDistinct(when(col(VoiceCount) > lit(0), col(dateKey)))
     case "gprs_usage_activedays" =>
-      countDistinct(when(col(GprsUsage) > lit(0), col(dateKey))).cast("double")
+      countDistinct(when(col(GprsUsage) > lit(0), col(dateKey)))
 
-    case "mean_time_interval_sms" => mean(col(TimeGapSMS)).cast("double")
-    case "min_time_interval_sms" => min(when(col(TimeGapSMS) > lit(0) && col(TimeGapSMS).isNotNull, col(TimeGapSMS))).cast("double")
-    case "max_time_interval_sms" => max(col(TimeGapSMS)).cast("double")
+    case "mean_time_interval_sms" => mean(col(TimeGapSMS))
+    case "min_time_interval_sms" => min(when(col(TimeGapSMS) > lit(0) && col(TimeGapSMS).isNotNull, col(TimeGapSMS)))
+    case "max_time_interval_sms" => max(col(TimeGapSMS))
 
-    case "mean_time_interval_voice" => mean(col(TimeGapVoice)).cast("double")
-    case "min_time_interval_voice" => min(when(col(TimeGapVoice) > lit(0) && col(TimeGapVoice).isNotNull, col(TimeGapVoice))).cast("double")
-    case "max_time_interval_voice" => max(col(TimeGapVoice)).cast("double")
+    case "mean_time_interval_voice" => mean(col(TimeGapVoice))
+    case "min_time_interval_voice" => min(when(col(TimeGapVoice) > lit(0) && col(TimeGapVoice).isNotNull, col(TimeGapVoice)))
+    case "max_time_interval_voice" => max(col(TimeGapVoice))
 
-    case "mean_time_interval_gprs" => mean(col(TimeGapGPRS)).cast("double")
-    case "min_time_interval_gprs" => min(when(col(TimeGapGPRS) > lit(0) && col(TimeGapGPRS).isNotNull, col(TimeGapGPRS))).cast("double")
-    case "max_time_interval_gprs" => max(col(TimeGapGPRS)).cast("double")
+    case "mean_time_interval_gprs" => mean(col(TimeGapGPRS))
+    case "min_time_interval_gprs" => min(when(col(TimeGapGPRS) > lit(0) && col(TimeGapGPRS).isNotNull, col(TimeGapGPRS)))
+    case "max_time_interval_gprs" => max(col(TimeGapGPRS))
 
     case "sms_sum_weekend" =>
       sum(when(col("weekday_or_weekend") === "weekend", col(SMSCount)))
@@ -87,5 +87,4 @@ class CDR(override val uid: String) extends AbstractAggregator {
       "weekday_or_weekend" -> weekdayOrWeekend
     )
   }
-
 }

@@ -44,10 +44,10 @@ class PostPaid(override val uid: String) extends AbstractAggregator {
 
     case "total_credit_utilization_growth" => first((col("total_bill_2")/col("total_credit_2"))/(col("total_bill")/col("total_credit")) - 1)
 
-    case "credit_limit_change" => max(when(col("row_number") === 2, col("credit_limit_change_2")))
-    case "credit_limit_growth_rate" => max(when(col("row_number") === 2, col("credit_limit_growth_rate_2")))
-    case "avl_credit_limit_growth" => max(when(col("row_number") === 2, col("avl_credit_limit_growth")))
-    case "deposit_change" => max(when(col("row_number") === 2, col("deposit_change_2")))
+    case "credit_limit_change" => max(when(col("row_number") === 2, col("credit_limit_change_2")).otherwise(0))
+    case "credit_limit_growth_rate" => max(when(col("row_number") === 2, col("credit_limit_growth_rate_2")).otherwise(0))
+    case "avl_credit_limit_growth" => max(when(col("row_number") === 2, col("avl_credit_limit_growth")).otherwise(0))
+    case "deposit_change" => max(when(col("row_number") === 2, col("deposit_change_2")).otherwise(0))
 
     case other =>
       throw new IllegalArgumentException(s"Unknown feature name passed to aggregator: '$other'")

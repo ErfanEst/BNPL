@@ -38,6 +38,8 @@ parquet_tables:
   - name: "post_paid"
     cols: ["dt_batch_id", "create_timestamp", "fake_msisdn", "fake_ic_number", "credit_limit", "deposit_amt_n", "outstanding_balance", "unbilled_amount", "last_status", "last_payment_date", "avl_credit_limit", "min_old_cl", "max_new_cl", "record_count", "suspension_flag", "suspension_reason", "month_id", "date_key", "bib_id"]
 
+  - name: "credit_management"
+    cols: ["fake_ic_number", "dt_batch_id", "create_timestamp", "fake_msisdn", "handset_model", "handset_brand", "handset_type", "cnt_of_days", "month_id", "date_key"]
 
 
 
