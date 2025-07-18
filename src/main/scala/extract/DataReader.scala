@@ -309,7 +309,7 @@ object DataReader {
           .repartition(300)
           .drop("date_key")
 
-        val changeOwnershipsPath = s"/home/erfan/Desktop/Change_ownership_list/drop_list_${index - 1}_$index"
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
         val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
           .dropDuplicates(bibID, nidHash)
           .select(bibID)

@@ -1,47 +1,28 @@
+# === Build Artifacts ===
 target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+*.jar
+*.war
+*.class
 
-### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
-*.iws
-*.iml
-*.ipr
-out/
-!**/src/main/**/out/
-!**/src/test/**/out/
+# Explicitly ignore your JAR
+ETL.jar
 
-### Eclipse ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
+# If you're outputting JARs anywhere else, catch them
+**/*.jar
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
+# === Docker ===
+*.tar
+*.img
+*.docker
+**/docker-compose.override.yml
+**/docker-compose.yml
+docker-compose.override.yml
+docker-compose.yml
 
-### VS Code ###
-.vscode/
+# Optional: exclude Docker image layers
+**/.docker
+**/docker/
 
-### Mac OS ###
-.DS_Store
-
-### Scala ###
-.bsp/
+# === Keep your Dockerfile but ignore build output ===
+# (Only add the next line if you ever export Docker images to files)
+*.tar.gz
