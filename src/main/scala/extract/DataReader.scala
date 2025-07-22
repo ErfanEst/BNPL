@@ -301,15 +301,17 @@ object DataReader {
   private val readCDR: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "cdr" =>
+        val basePath = "/home/yazdan/Desktop/CDR/cdr_16845_16846"
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-        val cdr = spark.read.parquet(appConfig.getString("Path.CDR"))
+        val cdr = spark.read.option("basePath", basePath)
+          .parquet(basePath)
           .filter(col(bibID).isNotNull)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
           .repartition(300)
           .drop("date_key")
 
-        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${16847}_${16848}"
         val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
           .dropDuplicates(bibID, nidHash)
           .select(bibID)

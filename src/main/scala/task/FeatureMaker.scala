@@ -197,12 +197,11 @@ object FeatureMaker {
             finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
           }
         }
+        finalDF.printSchema()
 
-        finalDF.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully with default values filled.")
-
-//        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-//        println("Task finished successfully.")
+        // Load to ClickHouse with config defaults
+        utils.CDRClickHouseLoader.loadCDRData(finalDF, index)
+        println("CDR data loaded to ClickHouse with config defaults")
 
       case "CreditManagement" =>
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
@@ -235,8 +234,18 @@ object FeatureMaker {
         println("Task finished successfully.")
     }
 
-    val duration = System.currentTimeMillis() - startTime
-    println(s"The code duration is: ${duration/1000} seconds.")
+    val durationMillis = System.currentTimeMillis() - startTime
+    val durationSec = durationMillis / 1000.0
+
+    println(s"The code duration is: $durationSec seconds.")
+
+    try {
+      metrics.MetricsPusher.push(durationSec, succeeded = true)
+    } catch {
+      case e: Exception =>
+        println("Failed to push Prometheus metrics: " + e.getMessage)
+    }
+
   }
 
   private def reverseMapOfList(a_map: Map[String, List[Int]]): Map[Int, List[String]] = {
