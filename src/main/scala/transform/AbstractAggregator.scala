@@ -1,7 +1,7 @@
 package transform
 
 import core.Core.SourceCol.Arpu.{flagSimTierMode, genderMode, siteTypeMode}
-import core.Core.{IndexedColumn, RangedCol}
+import core.Core.{IndexedColumn, RangedCol, logger}
 import org.apache.spark.ml.feature.CountVectorizerModel
 import org.apache.spark.sql.{Column, DataFrame, Dataset}
 import org.apache.spark.sql.functions.{col, expr, lit}
@@ -74,6 +74,9 @@ abstract class AbstractAggregator extends AbstractTransformer{
       listProducedGrouped.getOrElse(false, Map())
         .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
 
+    logger.info("middle features created!")
+//    Thread.sleep(5000)
+
     val result = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
       .groupBy(bibID)
@@ -87,6 +90,9 @@ abstract class AbstractAggregator extends AbstractTransformer{
         case None            => df
       }
     }
+
+    logger.info("features created!")
+//    Thread.sleep(5000)
 
     renamedDf
   }

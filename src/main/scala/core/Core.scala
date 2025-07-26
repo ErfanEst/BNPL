@@ -4,6 +4,8 @@ package core
 import com.typesafe.config.{Config, ConfigFactory}
 import net.jcazevedo.moultingyaml.DefaultYamlProtocol._
 import net.jcazevedo.moultingyaml._
+import org.apache.log4j.Logger
+import org.apache.spark.SparkConf
 import org.apache.spark.ml.feature.CountVectorizerModel
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.rogach.scallop.{ScallopConf, ScallopOption}
@@ -13,12 +15,31 @@ import scala.io.Source
 object Core {
 
   val appConfig: Config = ConfigFactory.load
-  lazy val spark: SparkSession = SparkSession.builder
-    .appName(appConfig.getString("spark.appName"))
-    .master(appConfig.getString("spark.master")) // Use all cores to match your system capacity while leaving 2 cores free for the OS
-    .config("spark.executor.memory", appConfig.getString("spark.executorMemory")) // 16GB memory for each executor
-    .config("spark.driver.memory", appConfig.getString("spark.driverMemory")) // 16GB memory for the driver
-    .getOrCreate
+  private object SparkConfigurator {
+    def buildSparkSession(): SparkSession = {
+      val sparkConfig = appConfig.getConfig("spark")
+
+      val conf = new SparkConf()
+
+      // Load all spark configs from appConfig (which is already loaded at the top)
+      sparkConfig.entrySet().forEach { entry =>
+        val key = entry.getKey
+        val value = sparkConfig.getString(key)
+        conf.set(s"spark.$key", value)
+      }
+
+      // Explicitly set master and appName (these two are NOT automatically used by Spark if only set via conf)
+      SparkSession.builder()
+        .master(sparkConfig.getString("master"))
+        .appName(sparkConfig.getString("appName"))
+        .config(conf)
+        .getOrCreate()
+    }
+  }
+
+  lazy val spark: SparkSession = SparkConfigurator.buildSparkSession()
+
+  val logger = Logger.getLogger("CDR")
 
   implicit private val yamlTablesFormat: YamlFormat[YamlTableData] = yamlFormat2(YamlTableData)
 
