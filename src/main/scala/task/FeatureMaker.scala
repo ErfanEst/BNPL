@@ -206,8 +206,8 @@ object FeatureMaker {
         }
 
         // Step 4 — Read and fully cache with materialization
-        val df1 = spark.read.parquet(s"$tmpDir/month_0").persist(StorageLevel.MEMORY_AND_DISK)
-        val df2 = spark.read.parquet(s"$tmpDir/month_1").persist(StorageLevel.MEMORY_AND_DISK)
+        val df1 = spark.read.parquet(s"$tmpDir/month_0").persist(StorageLevel.DISK_ONLY)
+        val df2 = spark.read.parquet(s"$tmpDir/month_1").persist(StorageLevel.DISK_ONLY)
 
         df1.count()  // fully materialize
         df2.count()  // fully materialize
@@ -232,7 +232,7 @@ object FeatureMaker {
         logger.info("Join complete")
         logger.info(s"Joined RDD lineage:\n${joined.rdd.toDebugString}")
 
-        val combinedDataFrame = joined.repartition(288, col(bibID))
+        val combinedDataFrame = joined.repartition(128, col(bibID))
         combinedDataFrame.count()  // optional light action
 
         // Step 7 — Fill missing values using default values

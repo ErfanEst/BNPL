@@ -336,7 +336,8 @@ object DataReader {
         val cdrFiltered = cdr
           .join(broadcast(changeOwnerships), Seq(bibID), "left_anti")
           .filter(col(bibID).isNotNull)
-          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
+          .dropDuplicates()
+          .persist(StorageLevel.DISK_ONLY)// ✅ Materialize this for reuse or costly downstream ops
 
         logger.info("cdrFiltered created — count: " + cdrFiltered.take(1).mkString("Array(", ", ", ")"))
         logger.info("cdrFiltered lineage:\n" + cdrFiltered.rdd.toDebugString)

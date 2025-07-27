@@ -79,8 +79,7 @@ object Aggregate {
 
     val source = getSource(name, featureTableMap, index, indices, maxRange, allNeededCols, bibID)
     val result = transformOutput(name, source, outputColumns, aggregator)
-
-    source.unpersist(true)
+//    source.unpersist(true)
 
     result
   }

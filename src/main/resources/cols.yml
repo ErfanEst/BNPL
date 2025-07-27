@@ -183,6 +183,7 @@ aggregation:
       max_days_single_handset: [1, 2]
       handset_stability: [1, 2]
       avg_days_per_handset: [1, 2]
+
 #      avg_days_per_handset: [1, 2]
 #      samsung_usage_ratio: [1, 2]
 #      xiaomi_usage_ratio: [1, 2]

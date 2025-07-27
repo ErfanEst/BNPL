@@ -36,9 +36,9 @@ class HandsetPrice(override val uid: String) extends AbstractAggregator {
     case "brand_diversity_ratio" => max(col("total_unique_handsets")/col("total_unique_brands"))
 
     case "sum_usage_days" => sum("cnt_of_days")
-    case "max_days_single_handset" => max("cnt_of_days")
+    case "max_days_single_handset" => max("sum_days_single_handset")
 
-    case "handset_stability" => first(col("max_days_single")/col("total_usage_days"))
+    case "handset_stability" => max(col("sum_days_single_handset")/col("total_usage_days"))
 
     case "avg_days_per_handset" => max(col("total_usage_days")/col("total_unique_handsets"))
 
@@ -48,6 +48,7 @@ class HandsetPrice(override val uid: String) extends AbstractAggregator {
 
   def listProducedBeforeTransform: Seq[(String, Column)] = {
 
+    val w1 = Window.partitionBy("fake_msisdn","handset_model")
     val w2 = Window.partitionBy("fake_msisdn", month_index)
 
     Seq(
@@ -56,6 +57,8 @@ class HandsetPrice(override val uid: String) extends AbstractAggregator {
       "total_usage_days" -> sum("cnt_of_days").over(w2),
       "max_days_single" -> max("cnt_of_days").over(w2),
       "brand_days" -> sum("cnt_of_days").over(w2),
+      "sum_days_single_handset" -> sum("cnt_of_days").over(w1),
+
     )
 
   }
