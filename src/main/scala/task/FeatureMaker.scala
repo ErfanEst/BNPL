@@ -240,7 +240,7 @@ object FeatureMaker {
     println(s"The code duration is: $durationSec seconds.")
 
     try {
-      metrics.MetricsPusher.push(durationSec, succeeded = true)
+//      metrics.MetricsPusher.push(durationSec, succeeded = true)
     } catch {
       case e: Exception =>
         println("Failed to push Prometheus metrics: " + e.getMessage)

@@ -301,7 +301,7 @@ object DataReader {
   private val readCDR: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "cdr" =>
-        val basePath = "/home/yazdan/Desktop/CDR/cdr_16845_16846"
+        val basePath = "/home/yazdan/bnpl-etl/sample/cdr_features_16845_16846/cdr_features_16845_16846"
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
         val cdr = spark.read.option("basePath", basePath)
           .parquet(basePath)

@@ -47,6 +47,7 @@ lazy val root = (project in file("."))
       case PathList(_, "UnusedStubClass.class") => MergeStrategy.discard
       case PathList(_, "module-info.class") => MergeStrategy.discard
       case "reference.conf" => MergeStrategy.concat
+      case "application.conf" => MergeStrategy.concat
       case _ => MergeStrategy.first
     }
   )
