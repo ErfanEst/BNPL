@@ -1,9 +1,11 @@
 package extract
 
 import core.Core.SourceCol.Arpu.{averageAge, flagSimTierMode, genderMode, mostFrequentFlagSimTier, mostFrequentGender, siteTypeMode}
-import core.Core.{appConfig, spark}
 import org.apache.spark.ml.feature.{CountVectorizer, CountVectorizerModel}
 import org.apache.spark.sql.functions._
+import org.apache.log4j.Logger
+import core.Core.{appConfig, logger, spark}
+import org.apache.spark.storage.StorageLevel
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions.{col, expr, lit, to_date, to_timestamp, unix_timestamp}
@@ -301,27 +303,43 @@ object DataReader {
   private val readCDR: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "cdr" =>
-        val basePath = "/home/yazdan/bnpl-etl/sample/cdr_features_16845_16846/cdr_features_16845_16846"
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-        val cdr = spark.read.option("basePath", basePath)
-          .parquet(basePath)
+        val previousMonth = index - 1
+        val basePath = appConfig.getString("Path.CDR")
+        val cdrPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_CDR",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_CDR"
+        )
+
+
+        logger.info(s"Loading CDR paths: $cdrPaths")
+
+        val neededCols = Seq(
+          bibID, "fake_id", "nid_hash", "sms_count", "voice_count",
+          "call_duration", "gprs_usage", "voice_session_cost", "date_key"
+        )
+
+        val cdr = spark.read.parquet(cdrPaths: _*)
           .filter(col(bibID).isNotNull)
+          .select(neededCols.map(col): _*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
-          .repartition(300)
           .drop("date_key")
 
-        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${16847}_${16848}"
-        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet("/home/yazdan/bnpl-etl/sample/drop_list_16847_16848")
           .dropDuplicates(bibID, nidHash)
           .select(bibID)
-          .distinct()
 
+        // 🔥 Broadcast anti join to avoid shuffle
         val cdrFiltered = cdr
-          .join(changeOwnerships,
-            cdr("bib_id") === changeOwnerships(bibID),
-            "left_anti")
+          .join(broadcast(changeOwnerships), Seq(bibID), "left_anti")
           .filter(col(bibID).isNotNull)
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
+
+        logger.info("cdrFiltered created — count: " + cdrFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info("cdrFiltered lineage:\n" + cdrFiltered.rdd.toDebugString)
 
         cdrFiltered
     }

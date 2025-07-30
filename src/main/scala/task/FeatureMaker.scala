@@ -1,12 +1,14 @@
 package task
 
-import core.Core.{Conf, aggregationColsYaml, appConfig}
+import core.Core.{Conf, aggregationColsYaml, appConfig, logger, spark}
 import org.apache.spark.sql.DataFrame
 import org.rogach.scallop.{ScallopConf, ScallopOption}
 import transform.Aggregate.aggregate
 import org.apache.spark.sql.functions._
 import utils.Utils.CommonColumns.{bibID, month_index, nidHash}
 import utils.Utils.monthIndexOf
+import org.apache.hadoop.fs.{FileSystem, Path}
+
 
 object FeatureMaker {
 
@@ -175,33 +177,117 @@ object FeatureMaker {
         println("Task finished successfully.")
 
       case "CDR" =>
-        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+
+
+        val tmpBaseDir = appConfig.getString("outputPath")
+        val runStamp   = System.currentTimeMillis()
+        val tmpDir     = s"$tmpBaseDir/_tmp_cdr_${index}_$runStamp"
+        val fs         = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+        val tmpPath    = new Path(tmpDir)
+
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
+
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
-        println("The data frame was created successfully...")
 
-        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq(bibID), "full_outer")
+        logger.info(s"Saving ${aggregatedDataFrames.size} monthly CreditManagement DFs to $tmpDir")
+
+        if (!fs.exists(tmpPath)) {
+          fs.mkdirs(tmpPath)
+          logger.info(s"Created temporary output directory: $tmpDir")
         }
 
+//        println("point 0")
+//        Thread.sleep(3000)
+
+        aggregatedDataFrames.zipWithIndex.foreach { case (df, i) =>
+          val path = s"$tmpDir/month_$i"
+          df.write.mode("overwrite").parquet(path)
+          logger.info(s"Saved month_$i to $path")
+        }
+
+//        println("point 1")
+//        Thread.sleep(3000)
+
+        // Step 4 — Read and fully cache with materialization
+        val df1 = spark.read.parquet(s"$tmpDir/month_0")
+        val df2 = spark.read.parquet(s"$tmpDir/month_1")
+
+//        println("point 2")
+//        Thread.sleep(3000)
+
+        df1.count()  // fully materialize
+        df2.count()  // fully materialize
+
+//        println("point 3")
+//        Thread.sleep(3000)
+
+        logger.info(s"df1 RDD lineage:\n${df1.rdd.toDebugString}")
+        logger.info(s"df2 RDD lineage:\n${df2.rdd.toDebugString}")
+
+//        println("point 4")
+//        Thread.sleep(3000)
+
+        // Step 5 — Safe to delete temporary directory after caching
+//        try {
+//          if (fs.exists(tmpPath)) {
+//            fs.delete(tmpPath, true)
+//            logger.info(s"Deleted temporary directory: $tmpDir")
+//          }
+//        } catch {
+//          case ex: Throwable =>
+//            logger.warn(s"Failed to delete $tmpDir. You may need to clean it manually.", ex)
+//        }
+
+//        println("point 5")
+//        Thread.sleep(3000)
+
+        // Step 6 — Join the cached data
+        val joined = df1.join(df2, Seq(bibID), "outer")
+        joined.count()  // light action to materialize joined plan
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${joined.rdd.toDebugString}")
+
+//        println("point 6")
+//        Thread.sleep(3000)
+
+        val combinedDataFrame = joined.repartition(128, col(bibID))
+        combinedDataFrame.count()  // optional light action
+
+//        println("point 7")
+//        Thread.sleep(3000)
+
+        // Step 7 — Fill missing values using default values
         val featureDefaultsConfig = appConfig.getConfig("featureDefaults.cdr_features")
-        val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-        val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-          val value = featureDefaultsConfig.getAnyRef(key)
-          key -> value
-        }.toMap
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+//        println("point 8")
+//        Thread.sleep(3000)
 
         var finalDF = combinedDataFrame
-        featureDefaults.foreach { case (colName, defaultValue) =>
+        featureDefaults.foreach { case (colName, defaultVal) =>
           if (finalDF.columns.contains(colName)) {
-            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
           }
         }
-        finalDF.printSchema()
+
+//        println("point 9")
+//        Thread.sleep(3000)
+
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
+
+//        println("point 10")
+//        Thread.sleep(3000)
 
         // Load to ClickHouse with config defaults
         utils.CDRClickHouseLoader.loadCDRData(finalDF, index)
-        println("CDR data loaded to ClickHouse with config defaults")
+        logger.info("CDR data loaded to ClickHouse with config defaults")
 
       case "CreditManagement" =>
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
