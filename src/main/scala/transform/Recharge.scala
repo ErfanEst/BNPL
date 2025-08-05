@@ -16,7 +16,7 @@ class Recharge(override val uid: String) extends AbstractAggregator {
 
   def aggregator(name: String): Column = name match {
     case "count_recharge" => count(bibID)
-    case "ratio_afternoon_recharge" => sum(when(col("recharge_hour") > 15, 1).otherwise(0)) / count(nidHash)
+    case "ratio_afternoon_recharge" => sum(when(col("recharge_hour") > 15, 1).otherwise(0)) / count(bibID)
     case "max_recharge" => max(rechargeValueAmt)
     case "min_recharge" => min(rechargeValueAmt)
     case "mean_recharge" => mean(rechargeValueAmt)

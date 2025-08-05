@@ -26,7 +26,7 @@ class LoanRec(override val uid: String) extends AbstractAggregator {
 
     Seq(
       "recovered" -> when(col("recovered_amt") === col("loan_amount"), 1).otherwise(0),
-      "time_to_repay" -> when(col("recovered") === 1, (col("recovered_time") - col("dt_sec_r")) / secsOneDay).otherwise(lit(30)),
+      "time_to_repay" -> when(col("recovered") === 1, (unix_timestamp(col("recovered_time")) - unix_timestamp(col("dt_sec_r"))) / secsOneDay).otherwise(lit(30)),
     )
   }
 

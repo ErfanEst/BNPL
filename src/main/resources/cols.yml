@@ -148,26 +148,6 @@ aggregation:
       gprs_revenue_change: [2]
       voice_revenue_change: [2]
 
-  - name: HandsetPriceBrands
-    tables: ["handset_price_brands"]
-    features:
-#      handset_v[0]: [1, 2]
-#      handset_v[1]: [1, 2]
-#      handset_v[2]: [1, 2]
-#      handset_v[3]: [1, 2]
-#      handset_v[4]: [1, 2]
-#      sum_unique_handsets: [1, 2]
-#      sum_unique_brands: [1, 2]
-#      brand_diversity_ratio: [1, 2]
-#      sum_usage_days: [1, 2]
-#      max_days_single_handset: [1, 2]
-#      handset_stability: [1, 2]
-#      avg_days_per_handset: [1, 2]
-      samsung_usage_ratio: [1, 2]
-#      xiaomi_usage_ratio: [1, 2]
-#      apple_usage_ratio: [1, 2]
-#      huawei_usage_ratio: [1, 2]
-
   - name: HandsetPrice
     tables: ["handset_price"]
     features:
@@ -176,26 +156,26 @@ aggregation:
       handset_v[2]: [1, 2]
       handset_v[3]: [1, 2]
       handset_v[4]: [1, 2]
-      sum_unique_handsets: [1, 2]
-      sum_unique_brands: [1, 2]
+      total_unique_handsets: [1, 2]
+      total_unique_brands: [1, 2]
       brand_diversity_ratio: [1, 2]
-      sum_usage_days: [1, 2]
+      total_usage_days: [1, 2]
       max_days_single_handset: [1, 2]
       handset_stability: [1, 2]
       avg_days_per_handset: [1, 2]
 
 #      avg_days_per_handset: [1, 2]
-#      samsung_usage_ratio: [1, 2]
-#      xiaomi_usage_ratio: [1, 2]
-#      apple_usage_ratio: [1, 2]
-#      huawei_usage_ratio: [1, 2]
+      samsung_usage_ratio: [1, 2]
+      xiaomi_usage_ratio: [1, 2]
+      apple_usage_ratio: [1, 2]
+      huawei_usage_ratio: [1, 2]
+
+#  - name: BankInfo
+#    tables: ['customer_person_type_bank_info']
+#    features:
+#      total_bank_count: [1, 2]
 
   - name: BankInfo
-    tables: ['customer_person_type_bank_info']
-    features:
-      total_bank_count: [1, 2]
-
-  - name: BankInfoGroupBy
     tables: ['customer_person_type_bank_info']
     features:
       total_bank_count: [1, 2]
@@ -246,7 +226,7 @@ aggregation:
   - name: LoanRec
     tables: ['loan_rec']
     features:
-      mean_time_to_repay: [1, 2]
+      mean_time_to_repay: [2]
 
   - name: DomesticTravel
     tables: ['domestic_travel']
@@ -295,5 +275,7 @@ aggregation:
       avg_days_ontime_2: [2]
       cnt_much_delayed_paid: [2]
       cnt_much_delayed_notpaid: [2]
+
+
 
 

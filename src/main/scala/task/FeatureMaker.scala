@@ -1,12 +1,14 @@
 package task
 
 import core.Core.{Conf, aggregationColsYaml, appConfig, logger, spark}
-import org.apache.spark.sql.DataFrame
-import org.rogach.scallop.{ScallopConf, ScallopOption}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import transform.Aggregate.aggregate
 import org.apache.spark.sql.functions._
 import utils.Utils.CommonColumns.{bibID, month_index, nidHash}
 import utils.Utils.monthIndexOf
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.spark.sql.DataFrame
+import org.rogach.scallop.{ScallopConf, ScallopOption}
 
 object FeatureMaker {
 
@@ -34,63 +36,129 @@ object FeatureMaker {
     name match {
 
       case "HandsetPrice" =>
-        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
+
+        // Step 1 — Aggregate for two months
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        println("The data frame was created successfully...")
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
 
-        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq("fake_msisdn"), "full_outer")
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq("fake_msisdn"), "outer"))
+        val repartitioned = joinedDF.repartition(144, col("fake_msisdn")).cache()
+        repartitioned.count()  // trigger cache
+
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        // Step 3 — Fill missing values using defaults
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.handset_price")
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+        var finalDF = repartitioned
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
+          }
         }
 
-        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully.")
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-      case "HandsetPriceBrands" =>
-        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
-        val aggregatedDataFrames: Seq[DataFrame] =
-          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
-
-        println("The data frame was created successfully...")
-
-        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq("fake_msisdn", "handset_brand"), "full_outer")
-        }
-
-        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully.")
+        // Step 4 — Final write
+        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+        finalDF.write.mode("overwrite").parquet(outPath)
+        logger.info(s"${name} task completed: Final output written to $outPath")
 
       case "BankInfo" =>
 
-        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
 
+        // Step 1 — Aggregate for two months
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        println("The data frame was created successfully...")
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
 
-        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq("fake_msisdn"), "full_outer")
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq("fake_msisdn"), "outer"))
+        val repartitioned = joinedDF.repartition(144, col("fake_msisdn")).cache()
+        repartitioned.count()  // trigger cache
+
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        // Step 3 — Fill missing values using defaults
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.bank_info")
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+        var finalDF = repartitioned
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
+          }
         }
 
-        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully.")
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-      case "PackagePurchase" =>
+        // Step 4 — Final write
+        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+        finalDF.write.mode("overwrite").parquet(outPath)
+        logger.info(s"${name} task completed: Final output written to $outPath")
 
-        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+      case "PackagePurchase" | "PackagePurchaseExtras" =>
+
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
+
+        // Step 1 — Aggregate for two months
         val aggregatedDataFrames: Seq[DataFrame] =
-            aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        println("The data frame was created successfully...")
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
 
-        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq("fake_msisdn"), "full_outer")
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq("fake_msisdn"), "outer"))
+        val repartitioned = joinedDF.repartition(144, col("fake_msisdn")).cache()
+        repartitioned.count()  // trigger cache
+
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        // Step 3 — Fill missing values using defaults
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.package_purchase_extras")
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+        var finalDF = repartitioned
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
+          }
         }
 
-        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully.")
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
+
+        // Step 4 — Final write
+        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+        finalDF.write.mode("overwrite").parquet(outPath)
+        logger.info(s"${name} task completed: Final output written to $outPath")
 
       case "Arpu" =>
 
@@ -128,56 +196,146 @@ object FeatureMaker {
         println("Task finished successfully.")
 
       case "Recharge" =>
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
 
-        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        // Step 1 — Aggregate for two months
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        println("The data frame was created successfully...")
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly Recharge DFs")
 
-        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq(bibID), "full_outer")
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq(bibID), "outer"))
+        val repartitioned = joinedDF.repartition(144, col(bibID)).cache()
+        repartitioned.count()  // trigger cache
+
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        // Step 3 — Fill missing values using defaults
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.recharge_features")
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+        var finalDF = repartitioned
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
+          }
         }
 
-        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully.")
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
+
+        // Step 4 — Final write
+        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+        finalDF.write.mode("overwrite").parquet(outPath)
+        logger.info(s"Recharge task completed: Final output written to $outPath")
 
 
       case "LoanAssign" =>
 
-        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
+
+        // Step 1 — Aggregate for two months
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        println("The data frame was created successfully...")
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
 
-        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq(bibID), "full_outer")
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq(bibID), "outer"))
+        val repartitioned = joinedDF.repartition(144, col(bibID)).cache()
+        repartitioned.count()  // trigger cache
+
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        // Step 3 — Fill missing values using defaults
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.loan_assign")
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+        var finalDF = repartitioned
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
+          }
         }
 
-        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully.")
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
+        // Step 4 — Final write
+        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+        finalDF.write.mode("overwrite").parquet(outPath)
+        logger.info(s"${name} task completed: Final output written to $outPath")
 
       case "LoanRec" =>
 
-        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
+
+        // Step 1 — Aggregate for two months
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        println("The data frame was created successfully...")
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
 
-        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq(bibID), "full_outer")
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq(bibID), "outer"))
+        val repartitioned = joinedDF.repartition(144, col(bibID)).cache()
+        repartitioned.count()  // trigger cache
+
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        // Step 3 — Fill missing values using defaults
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.loan_rec")
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+        var finalDF = repartitioned
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
+          }
         }
 
-        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully.")
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
+
+        // Step 4 — Final write
+        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+        finalDF.write.mode("overwrite").parquet(outPath)
+        logger.info(s"${name} task completed: Final output written to $outPath")
+
+
+//        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+//        val aggregatedDataFrames: Seq[DataFrame] =
+//          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+//
+//        println("The data frame was created successfully...")
+//
+//        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+//          df1.join(df2, Seq(bibID), "full_outer")
+//        }
+//
+//        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+//        println("Task finished successfully.")
 
       case "CDR" =>
-        import org.apache.hadoop.fs.{FileSystem, Path}
-        import org.apache.spark.sql.DataFrame
-        import org.apache.spark.storage.StorageLevel
 
         val tmpBaseDir = appConfig.getString("outputPath")
         val runStamp   = System.currentTimeMillis()
@@ -192,7 +350,7 @@ object FeatureMaker {
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        logger.info(s"Saving ${aggregatedDataFrames.size} monthly CreditManagement DFs to $tmpDir")
+        logger.info(s"Saving ${aggregatedDataFrames.size} monthly CDR DFs to $tmpDir")
 
         if (!fs.exists(tmpPath)) {
           fs.mkdirs(tmpPath)
@@ -206,8 +364,8 @@ object FeatureMaker {
         }
 
         // Step 4 — Read and fully cache with materialization
-        val df1 = spark.read.parquet(s"$tmpDir/month_0").persist(StorageLevel.DISK_ONLY)
-        val df2 = spark.read.parquet(s"$tmpDir/month_1").persist(StorageLevel.DISK_ONLY)
+        val df1 = spark.read.parquet(s"$tmpDir/month_0")
+        val df2 = spark.read.parquet(s"$tmpDir/month_1")
 
         df1.count()  // fully materialize
         df2.count()  // fully materialize
@@ -232,7 +390,7 @@ object FeatureMaker {
         logger.info("Join complete")
         logger.info(s"Joined RDD lineage:\n${joined.rdd.toDebugString}")
 
-        val combinedDataFrame = joined.repartition(128, col(bibID))
+        val combinedDataFrame = joined.repartition(144, col(bibID))
         combinedDataFrame.count()  // optional light action
 
         // Step 7 — Fill missing values using default values
@@ -257,107 +415,239 @@ object FeatureMaker {
         finalDF.write.mode("overwrite").parquet(outPath)
         logger.info(s"Task completed: Final output written to $outPath")
 
-        // Step 9 — Cleanup cache explicitly (optional but recommended)
-        df1.unpersist()
-        df2.unpersist()
-
       case "CreditManagement" =>
-
-        import org.apache.hadoop.fs.{FileSystem, Path}
-        import org.apache.spark.sql.DataFrame
-
-        val tmpBaseDir = appConfig.getString("outputPath") // e.g. "/mnt/data/out"
-        val runStamp   = System.currentTimeMillis()
-        val tmpDir     = s"$tmpBaseDir/_tmp_credit_${index}_$runStamp"
-        val fs         = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-        val tmpPath    = new Path(tmpDir)
 
         val outputColumns = reverseMapOfList(
           aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
         )
 
+        // Step 1 — Aggregate for two months
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        logger.info(s"Saving ${aggregatedDataFrames.size} monthly CreditManagement DFs to $tmpDir")
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly CreditManagement DFs")
 
-        if (!fs.exists(tmpPath)) {
-          fs.mkdirs(tmpPath)
-          logger.info(s"Created temporary output directory: $tmpDir")
-        }
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq("fake_msisdn"), "outer"))
+        val repartitioned = joinedDF.repartition(144, col("fake_msisdn")).cache()
+        repartitioned.count()  // trigger cache
 
-        aggregatedDataFrames.zipWithIndex.foreach { case (df, i) =>
-          val path = s"$tmpDir/month_$i"
-          df.write.mode("overwrite").parquet(path)
-          logger.info(s"Saved month_$i to $path — row count: ${df.count()}")
-        }
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
 
-        // ✅ Step 4 — Read and CACHE, then materialize
-        val df1 = spark.read.parquet(s"$tmpDir/month_0").cache()
-        val df2 = spark.read.parquet(s"$tmpDir/month_1").cache()
-
-        logger.info(s"Materializing df1 with count: ${df1.count()}")
-        logger.info(s"Materializing df2 with count: ${df2.count()}")
-        logger.info(s"df1 RDD lineage:\n${df1.rdd.toDebugString}")
-        logger.info(s"df2 RDD lineage:\n${df2.rdd.toDebugString}")
-
-        // ✅ Step 5 — Only now delete the temp directory
-        try {
-          if (fs.exists(tmpPath)) {
-            fs.delete(tmpPath, true)
-            logger.info(s"Deleted temporary directory: $tmpDir")
-          }
-        } catch {
-          case ex: Throwable =>
-            logger.warn(s"Failed to delete $tmpDir. You may need to clean it manually.", ex)
-        }
-
-        // Step 6 — Join the cached data
-        val joined = df1.join(df2, Seq("fake_msisdn"), "outer")
-        logger.info("Join complete — triggering job with count")
-        logger.info(s"joined.count(): ${joined.count()}")
-        logger.info(s"Joined RDD lineage:\n${joined.rdd.toDebugString}")
-
-        val combinedDataFrame = joined.repartition(200, col("fake_msisdn"))
-        logger.info(s"Repartitioned to 200 by bibID — count: ${combinedDataFrame.count()}")
-
-        // Step 7 — Fill nulls
-        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.cdr_features")
+        // Step 3 — Fill missing values using defaults
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.credit_management")
         val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
           .map(_.toString.split("=")(0).trim)
           .map(k => k -> featureDefaultsConfig.getAnyRef(k))
           .toMap
 
-        var finalDF = combinedDataFrame
+        var finalDF = repartitioned
         featureDefaults.foreach { case (colName, defaultVal) =>
           if (finalDF.columns.contains(colName)) {
             finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
           }
         }
 
-        logger.info("Default value filling complete — finalDF.count(): " + finalDF.count())
+        logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 8 — Write output
+        // Step 4 — Final write
         val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
         finalDF.write.mode("overwrite").parquet(outPath)
-        logger.info(s"Task completed: Final output written to $outPath")
+        logger.info(s"${name} task completed: Final output written to $outPath")
+
+      case "UserInfo" =>
+
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
+
+        // Step 1 — Aggregate for two months
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
+
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq(bibID), "outer"))
+        val repartitioned = joinedDF.repartition(144, col(bibID)).cache()
+        repartitioned.count()  // trigger cache
+
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        // Step 3 — Fill missing values using defaults
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.user_info")
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+        var finalDF = repartitioned
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
+          }
+        }
+
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
+
+        // Step 4 — Final write
+        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+        finalDF.write.mode("overwrite").parquet(outPath)
+        logger.info(s"${name} task completed: Final output written to $outPath")
 
 
-      //        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
-//        val aggregatedDataFrames: Seq[DataFrame] =
-//          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
-//
-//        println("The data frame was created successfully...")
-//
-//        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-//          df1.join(df2, Seq("fake_msisdn"), "full_outer")
-//        }
-//
-//        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-//        println("Task finished successfully.")
+      case "DomesticTravel" =>
+
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
+
+        // Step 1 — Aggregate for two months
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
+
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq("fake_msisdn"), "outer"))
+        val repartitioned = joinedDF.repartition(144, col("fake_msisdn")).cache()
+        repartitioned.count()  // trigger cache
+
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        // Step 3 — Fill missing values using defaults
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.domestic_travel")
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+        var finalDF = repartitioned
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
+          }
+        }
+
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
+
+        // Step 4 — Final write
+        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+        finalDF.write.mode("overwrite").parquet(outPath)
+        logger.info(s"${name} task completed: Final output written to $outPath")
+
+      case "PostPaid" =>
+
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
+
+        // Step 1 — Aggregate for two months
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
+
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq("fake_msisdn"), "outer"))
+        val repartitioned = joinedDF.repartition(144, col("fake_msisdn")).cache()
+        repartitioned.count()  // trigger cache
+
+        // Register the repartitioned DataFrame as a temp view for SQL queries from config
+        repartitioned.createOrReplaceTempView("finalDF_view")
+
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.postpaid")
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+        var finalDF = repartitioned
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+
+            val valueToFill: Option[Any] = defaultVal match {
+              case query: String if query.trim.toLowerCase.startsWith("select") =>
+                try {
+                  val queryResult = spark.sql(query)
+                  val value = queryResult.first().get(0)
+                  Some(value)
+                } catch {
+                  case e: Exception =>
+                    logger.warn(s"Failed to run query for column '$colName': $query", e)
+                    None
+                }
+              case _ => Some(defaultVal)
+            }
+
+            valueToFill.foreach { v =>
+              finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(v)))
+            }
+          }
+        }
+
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
+
+        // Step 4 — Final write
+        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+        finalDF.write.mode("overwrite").parquet(outPath)
+        logger.info(s"${name} task completed: Final output written to $outPath")
+
+      case "Package" =>
+
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
+
+        // Step 1 — Aggregate for two months
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
+
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq(bibID), "outer"))
+        val repartitioned = joinedDF.repartition(144, col(bibID)).cache()
+        repartitioned.count()  // trigger cache
+
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        // Step 3 — Fill missing values using defaults
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.package_features")
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+        var finalDF = repartitioned
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
+          }
+        }
+
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
+
+        // Step 4 — Final write
+        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+        finalDF.write.mode("overwrite").parquet(outPath)
+        logger.info(s"${name} task completed: Final output written to $outPath")
+
 
       case _ =>
+
         val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
 
         val aggregatedDataFrames: Seq[DataFrame] =

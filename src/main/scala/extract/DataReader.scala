@@ -10,9 +10,7 @@ import org.apache.spark.sql.functions.{col, expr, lit, to_date, to_timestamp, un
 import org.apache.spark.sql.types.IntegerType
 import task.FeatureMaker.index
 import utils.Utils.CommonColumns.{bibID, month_index, nidHash}
-import utils.Utils.arpuDetails.other_sites
 import utils.Utils.monthIndexOf
-import org.apache.log4j.Logger
 import org.apache.spark.storage.StorageLevel
 
 object DataReader {
@@ -25,8 +23,6 @@ object DataReader {
     df
   }
 
-
-
   private val readTable: PartialFunction[String, DataFrame] = {
 
     case x if List("package").contains(x) => readPackage(x, index)
@@ -35,9 +31,7 @@ object DataReader {
     case x if List("user_info").contains(x) => readUserInfo(x, index)
     case x if List("package_purchase").contains(x) => readPackagePurchase(x, index)
     case x if List("package_purchase_extras").contains(x) => readPackagePurchase(x, index)
-    case x if List("package_purchase_avgs").contains(x) => readPackagePurchase(x, index)
     case x if List("handset_price").contains(x) => readHandSetPrice(x, index)
-    case x if List("handset_price_brands").contains(x) => readHandSetPrice(x, index)
     case x if List("arpu").contains(x) => readArpu(x, index)
     case x if List("arpu_changes").contains(x) => readArpuChanges(x, index)
     case x if List("customer_person_type_bank_info").contains(x) => readBankInfo(x, index)
@@ -55,11 +49,23 @@ object DataReader {
 
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
 
+        val neededCols = Seq(
+          "fake_msisdn", "credit_amount", "credit_assigned_date", "loan_id", "loan_amount", "loan_status", "installment_id", "installment_amount", "installment_duedate", "days_delayed", "date_key"
+        )
+
+        val basePath = appConfig.getString("Path.Recharge")
+
+        val previousMonth = index - 1
+        val creditPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_CREDIT_MANAGEMENT",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_CREDIT_MANAGEMENT"
+        )
+
         val creditRaw = spark.read.parquet(appConfig.getString("Path.CreditManagement"))
+          .select(neededCols.map(col): _*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
           .filter(col("credit_assigned_date") > "2024-12-16")
-          .dropDuplicates()
 
         val maxMonthIndex = creditRaw.agg(max(month_index)).first().get(0)
 
@@ -100,7 +106,23 @@ object DataReader {
               .otherwise(-1)
           )
 
-        result
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
+
+        // Broadcast anti-join to avoid shuffle
+        val creditFiltered = result
+          .join(broadcast(changeOwnerships), result("fake_msisdn") === changeOwnerships(bibID), "left_anti")
+          .filter(col("fake_msisdn").isNotNull)
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
+
+        logger.info(s"${fileType} created — count: " + creditFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"${fileType} lineage:\n" + creditFiltered.rdd.toDebugString)
+
+        creditFiltered
+
     }
   }
 
@@ -112,111 +134,173 @@ object DataReader {
 
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
 
+        val neededCols = Seq(
+          "fake_msisdn", "credit_limit", "deposit_amt_n", "outstanding_balance", "unbilled_amount", "last_status", "last_payment_date", "avl_credit_limit", "suspension_flag", "month_id", "date_key"
+        )
+
+        val basePath = appConfig.getString("Path.Recharge")
+
+        val previousMonth = index - 1
+        val poatpaidPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_POST_PAID",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_POST_PAID"
+        )
+
         val postPaid = spark.read.parquet(appConfig.getString("Path.PostPaid"))
+          .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
-//          .na.fill(Map(
-//            "credit_limit" -> 0.0,
-//            "deposit_amt_n" -> 0.0
-//          ))
-          .dropDuplicates()
           .withColumn("row_number", row_number().over(w))
 
-        val changeOwnerships = spark.read.parquet("/home/erfan/Desktop/Change_ownership_list/drop_list_16846_16847")
-          .dropDuplicates("bib_id", "nid_hash")
-          .select("bib_id")
-          .distinct()
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
 
-        val postPaidFiltered = postPaid
-          .join(changeOwnerships,
-            postPaid("fake_msisdn") === changeOwnerships("bib_id"),
-            "left_anti")
+        // Broadcast anti-join to avoid shuffle
+        val postpaidFiltered = postPaid
+          .join(broadcast(changeOwnerships), postPaid("fake_msisdn") === changeOwnerships(bibID), "left_anti")
+          .filter(col("fake_msisdn").isNotNull)
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)//
 
+        logger.info(s"${fileType} created — count: " + postpaidFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"${fileType} lineage:\n" + postpaidFiltered.rdd.toDebugString)
 
-
-        val afterCount = postPaidFiltered.count()
-        println(s"After filtering (postPaidFiltered) count: $afterCount")
-        val beforeCount = postPaid.count()
-        println(s"Before filtering (postPaid) count: $beforeCount")
-        println(s"Dropped rows: ${beforeCount - afterCount}")
-        Thread.sleep(10000)
-
-        postPaid.filter(col("fake_msisdn") === "018B5E24A97654D3029C4CE8DAC57364").show(false)
-        postPaid.printSchema()
-        Thread.sleep(10000)
-
-        postPaid
+        postpaidFiltered
 
     }
   }
 
   private val readDomestic: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
+
       case "domestic_travel" =>
+
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+
+        val neededCols = Seq(
+          "fake_msisdn", "sum_travel", "date_key"
+        )
+
+        val basePath = appConfig.getString("Path.DomesticTravel")
+
+        val previousMonth = index - 1
+        val domesticPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_DOMESTICTRAVEL",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_DOMESTICTRAVEL"
+        )
+
         val domestic = spark.read.parquet(appConfig.getString("Path.DomesticTravel"))
+          .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
 
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
 
-//          .drop("date_key")
+        // Broadcast anti-join to avoid shuffle
+        val domesticFiltered = domestic
+          .join(broadcast(changeOwnerships), domestic("fake_msisdn") === changeOwnerships(bibID), "left_anti")
+          .filter(col("fake_msisdn").isNotNull)
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
 
-        domestic
+        logger.info(s"${fileType} created — count: " + domesticFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"${fileType} lineage:\n" + domesticFiltered.rdd.toDebugString)
+
+        domesticFiltered
     }
   }
 
-  /*
-    private val readPackagePurchaseExtras: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
-      fileType match {
-        case "package_purchase" =>
-          val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-          val packagePurchaseExtras = spark.read.parquet(appConfig.getString("Path.PackagePurchase"))
-            .filter(col("amount") > lit(0) && col("cnt") > lit(0))
-            .withColumn(month_index, monthIndexOfUDF(col("date")))
-            .drop("date_key")
-
-          packagePurchaseExtras
-      }
-    }
-  */
 
   private val readPackagePurchase: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "package_purchase" =>
+
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+
+        val neededCols = Seq(
+          "fake_msisdn", "service_type", "cnt", "amount", "source_system_cd", "date_key"
+        )
+
+        val basePath = appConfig.getString("Path.PackagePurchase")
+        val previousMonth = index - 1
+        val pkgPurchasePaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_PACKAGE_PURCHASE",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_PACKAGE_PURCHASE"
+        )
+
         val packagePurchase = spark.read.parquet(appConfig.getString("Path.PackagePurchase"))
+          .select(neededCols.map(col):_*)
           .filter(col("amount") > lit(0) && col("cnt") > lit(0))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
-
           .drop("date_key")
 
-        packagePurchase.filter(col("service_type") === "Pay Bill").show()
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
 
+        // Broadcast anti-join to avoid shuffle
+        val packagePurchaseFiltered = packagePurchase
+          .join(broadcast(changeOwnerships), packagePurchase("fake_msisdn") === changeOwnerships(bibID), "left_anti")
+          .filter(col("fake_msisdn").isNotNull)
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
 
-        packagePurchase
+        logger.info(s"${fileType} created — count: " + packagePurchaseFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"${fileType} lineage:\n" + packagePurchaseFiltered.rdd.toDebugString)
+
+        packagePurchaseFiltered
     }
   }
+
 
   private val readLoanAssign: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "loan_assign" =>
+
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
 
-        val loanAssignDf = spark.read.parquet(appConfig.getString("Path.LoanAssign"))
-          .filter(col("bib_id").isNotNull)
+        val neededCols = Seq("bib_id", "loan_id", "loan_amount", "date_key", "date_timestamp")
+
+        val basePath = appConfig.getString("Path.LOAN_ASSIGN")
+        val previousMonth = index - 1
+        val loanAssignPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGN",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGN"
+        )
+
+        val loanAssign = spark.read.parquet(appConfig.getString("Path.LoanAssign"))
+          .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
-          .withColumn("dt", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
-          .withColumn("dt_sec", unix_timestamp(col("dt").cast("string")))
+          .withColumn("dt_sec", unix_timestamp(col("date_timestamp"), "yyyyMMdd HH:mm:ss").cast("timestamp"))
           .withColumn("loan_id", col("loan_id").cast("long"))
           .withColumn("loan_amount", col("loan_amount").cast("int"))
           .drop("date_key")
 
-        loanAssignDf
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
 
-      case _ =>
-        throw new IllegalArgumentException(s"Unknown file type: $fileType")
+        // Broadcast anti join to avoid shuffle
+        val loanAssignFiltered = loanAssign
+          .join(broadcast(changeOwnerships), Seq(bibID), "left_anti")
+          .filter(col(bibID).isNotNull)
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
+
+        logger.info(s"${fileType} created — count: " + loanAssignFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"${fileType} lineage:\n" + loanAssignFiltered.rdd.toDebugString)
+
+        loanAssignFiltered
+
     }
   }
 
@@ -224,81 +308,154 @@ object DataReader {
     fileType match {
       case "loan_rec" =>
 
-        println("--- in the loan recovery")
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
 
+        val neededColsRec = Seq("bib_id", "loan_id", "loan_amount", "hsdp_recovery", "date_timestamp", "date_key")
+
+        val basePathRec = appConfig.getString("Path.LoanRec")
+        val previousMonthRec = index - 1
+        val loanRecPaths = Seq(
+          s"$basePathRec/$previousMonthRec/DEFAULT.BNPL_AAT_LABS_LOAN_REC",
+          s"$basePathRec/$index/DEFAULT.BNPL_AAT_LABS_LOAN_REC"
+        )
+
         val recFeat = spark.read.parquet(appConfig.getString("Path.LoanRec"))
+          .select(neededColsRec.map(col):_*)
           .filter(col("bib_id").isNotNull)
           .withColumn("date_l", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date_l")))
-          .withColumn("dt_l", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
-          .withColumn("dt_sec_l", unix_timestamp(col("dt_l").cast("string")))
+//          .withColumn("dt_l", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
+          .withColumn("dt_sec_l", unix_timestamp(col("date_timestamp"), "yyyyMMdd HH:mm:ss").cast("timestamp"))
           .withColumn("loan_id", col("loan_id").cast("long"))
           .withColumn("loan_amount", col("loan_amount").cast("int"))
           .drop("date_key")
           .groupBy("loan_id", bibID).agg(sum("hsdp_recovery").alias("recovered_amt"), max("dt_sec_l").alias("recovered_time"))
 
-        println("--- recFeat created")
-        recFeat.printSchema()
+        val neededColsAssign = Seq("bib_id", "loan_id", "loan_amount", "date_key", "date_timestamp")
+
+        val basePathAssign = appConfig.getString("Path.LoanAssign")
+        val previousMonthAssign = index - 1
+        val loanAssignPaths = Seq(
+          s"$basePathAssign/$previousMonthAssign/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGN",
+          s"$basePathAssign/$index/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGN"
+        )
 
         val loanAssignDf = spark.read.parquet(appConfig.getString("Path.LoanAssign"))
+          .select(neededColsAssign.map(col):_*)
           .filter(col("bib_id").isNotNull)
           .withColumn("date_r", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date_r")))
-          .withColumn("dt_r", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
-          .withColumn("dt_sec_r", unix_timestamp(col("dt_r").cast("string")))
+//          .withColumn("dt_r", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
+          .withColumn("dt_sec_r", unix_timestamp(col("date_timestamp"), "yyyyMMdd HH:mm:ss").cast("timestamp"))
           .withColumn("loan_id", col("loan_id").cast("long"))
           .withColumn("loan_amount", col("loan_amount").cast("int"))
+          .filter(col(month_index) === index - 1)
           .drop("date_key")
-
-        println("--- loanAssignDf created")
-        loanAssignDf.printSchema()
 
         val recoveredLoan = recFeat
           .drop(bibID)
           .drop(nidHash)
           .join(loanAssignDf, Seq("loan_id"), "right").na.fill(Map("recovered_amt" -> 0))
 
-        println("--- recoveredLoan created")
-        recoveredLoan.printSchema()
 
-        recoveredLoan.show(10, truncate = false)
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
+
+        // Broadcast anti join to avoid shuffle
+        val loanAssignFiltered = recoveredLoan
+          .join(broadcast(changeOwnerships), Seq(bibID), "left_anti")
+          .filter(col(bibID).isNotNull)
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
+
+        logger.info(s"${fileType} created — count: " + loanAssignFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"${fileType} lineage:\n" + loanAssignFiltered.rdd.toDebugString)
 
         recoveredLoan
-
-      case _ =>
-        throw new IllegalArgumentException(s"Unknown file type: $fileType")
     }
   }
 
   private val readUserInfo: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "user_info" =>
+
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+
+        val neededCols = Seq(bibID, "contract_type_v", "gender_v", "registration_date_d", "date_of_birth_d", "ability_status", "account_balance", "base_station_cd", "siteid", "date_key")
+
+        val basePath = appConfig.getString("Path.UserInfo")
+        val previousMonth = index - 1
+        val userInfoPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_USERINFO",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_USERINFO"
+        )
+
         val user = spark.read.parquet(appConfig.getString("Path.UserInfo"))
+          .select(neededCols.map(col):_*)
           .filter(col(bibID).isNotNull)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
-          .repartition(300)
           .drop("date_key")
-        user
+
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
+
+        // Broadcast anti join to avoid shuffle
+        val userFiltered = user
+          .join(broadcast(changeOwnerships), Seq(bibID), "left_anti")
+          .filter(col(bibID).isNotNull)
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
+
+        logger.info(s"${fileType} created — count: " + userFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"${fileType} lineage:\n" + userFiltered.rdd.toDebugString)
+
+        userFiltered
     }
   }
 
   private val readPackage: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "package" =>
+
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+
+        val neededCols = Seq("bib_id", "offering_code", "offer_amount", "offering_name", "activation_date", "deactivation_date", "date_key")
+
+        val basePath = appConfig.getString("Path.Package")
+        val previousMonth = index - 1
+        val userInfoPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_PACKAGE",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_PACKAGE"
+        )
+
         val pkg = spark.read.parquet(appConfig.getString("Path.Package"))
-          .filter(col(nidHash).isNotNull)
-          .repartition(300)
+          .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
-        val preProcessedDf = pkg
           .withColumn("de_a_date", unix_timestamp(to_timestamp(col("deactivation_date"), "yyyyMMdd HH:mm:ss")))
           .withColumn("a_date", unix_timestamp(to_timestamp(col("activation_date"), "yyyyMMdd HH:mm:ss")))
 
-        preProcessedDf
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
+
+        // Broadcast anti join to avoid shuffle
+        val pkgFiltered = pkg
+          .join(broadcast(changeOwnerships), Seq(bibID), "left_anti")
+          .filter(col(bibID).isNotNull)
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
+
+        logger.info(s"${fileType} created — count: " + pkgFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"${fileType} lineage:\n" + pkgFiltered.rdd.toDebugString)
+
+        pkgFiltered
     }
   }
 
@@ -316,7 +473,7 @@ object DataReader {
         logger.info(s"Loading CDR paths: $cdrPaths")
 
         val neededCols = Seq(
-          bibID, "fake_id", "nid_hash", "sms_count", "voice_count",
+          bibID, "sms_count", "voice_count",
           "call_duration", "gprs_usage", "voice_session_cost", "date_key"
         )
 
@@ -332,12 +489,12 @@ object DataReader {
           .dropDuplicates(bibID, nidHash)
           .select(bibID)
 
-        // 🔥 Broadcast anti join to avoid shuffle
+        // Broadcast anti join to avoid shuffle
         val cdrFiltered = cdr
           .join(broadcast(changeOwnerships), Seq(bibID), "left_anti")
           .filter(col(bibID).isNotNull)
           .dropDuplicates()
-          .persist(StorageLevel.DISK_ONLY)// ✅ Materialize this for reuse or costly downstream ops
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
 
         logger.info("cdrFiltered created — count: " + cdrFiltered.take(1).mkString("Array(", ", ", ")"))
         logger.info("cdrFiltered lineage:\n" + cdrFiltered.rdd.toDebugString)
@@ -347,10 +504,23 @@ object DataReader {
   }
 
   private val readHandSetPrice: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
+
     fileType match {
       case "handset_price" =>
+
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+
+        val neededCols = Seq("fake_msisdn", "handset_model", "handset_brand", "handset_type", "cnt_of_days", "month_id", "date_key")
+
+        val basePath = appConfig.getString("Path.HandsetPrice")
+        val previousMonth = index - 1
+        val handsetPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_HANDSETPRICE",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_HANDSETPRICE"
+        )
+
         var handsetPrice = spark.read.parquet(appConfig.getString("Path.HandsetPrice"))
+          .select(neededCols.map(col):_*)
           .withColumn("handset_brand_array", array("handset_brand"))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -362,25 +532,24 @@ object DataReader {
 
         handsetPrice = cvm.transform(handsetPrice)
 
-        handsetPrice = handsetPrice.dropDuplicates()
-        handsetPrice = handsetPrice.filter(col("handset_brand").isNotNull)
-        handsetPrice = handsetPrice.filter(col("cnt_of_days").isNotNull)
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
 
-        handsetPrice
+        // Broadcast anti-join to avoid shuffle
+        val handsetFiltered = handsetPrice
+          .join(broadcast(changeOwnerships), handsetPrice("fake_msisdn") === changeOwnerships(bibID), "left_anti")
+          .filter(col("fake_msisdn").isNotNull)
+          .filter(col("handset_brand").isNotNull)
+          .filter(col("cnt_of_days").isNotNull)
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
 
-    case "handset_price_brands" =>
-      val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-      var handsetPrice = spark.read.parquet(appConfig.getString("Path.HandsetPrice"))
-        .withColumn("handset_brand_array", array("handset_brand"))
-        .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
-        .withColumn(month_index, monthIndexOfUDF(col("date")))
-        .drop("date_key")
+        logger.info(s"${fileType} created — count: " + handsetFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"${fileType} lineage:\n" + handsetFiltered.rdd.toDebugString)
 
-      handsetPrice = handsetPrice.dropDuplicates()
-      handsetPrice = handsetPrice.filter(col("handset_brand").isNotNull)
-      handsetPrice = handsetPrice.filter(col("cnt_of_days").isNotNull)
-
-      handsetPrice
+        handsetFiltered
     }
   }
 
@@ -435,11 +604,24 @@ object DataReader {
 
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
 
+        val neededCols = Seq("fake_msisdn", "bank_name", "sms_cnt", "date_key")
+
+        val basePath = appConfig.getString("Path.BankInfo")
+        val previousMonth = index - 1
+        val handsetPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_BANKINFO",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_BANKINFO"
+        )
+
         val iranianBanks = Seq(
           "mellat", "tejarat", "keshavarzi", "refah", "melli",
           "pasargad", "maskan", "resalat", "ayandeh", "parsian",
           "enbank", "sina", "iz"
         )
+
+        val cvModel = new CountVectorizerModel(iranianBanks.toArray)
+          .setInputCol("matched_banks")
+          .setOutputCol("bank_vector")
 
         val extractBankUDF = udf { name: String =>
           if (name == null || name.toLowerCase.trim.startsWith("v.")) Seq.empty[String]
@@ -449,37 +631,27 @@ object DataReader {
           }
         }
 
-        val rawBankInfo = spark.read.parquet(appConfig.getString("Path.BankInfo"))
-          .filter(col("fake_msisdn").isNotNull)
+        val bankInfo = spark.read.parquet(appConfig.getString("Path.BankInfo"))
+          .select(neededCols.map(col):_*)
+          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
+          .withColumn(month_index, monthIndexOfUDF(col("date")))
+          .withColumn("matched_banks", extractBankUDF(col("bank_name")))
+          .filter(size(col("matched_banks")) > lit(0))
 
         val changeOwnerships = spark.read.parquet("/home/erfan/Desktop/Change_ownership_list/drop_list_16848_16849")
           .dropDuplicates("bib_id", "nid_hash")
           .select("bib_id")
           .distinct()
 
-        val bankInfo = rawBankInfo
-          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
-          .withColumn(month_index, monthIndexOfUDF(col("date")))
-          .withColumn("matched_banks", extractBankUDF(col("bank_name")))
-          .filter(size(col("matched_banks")) > lit(0))
-
         val bankInfoFiltered = bankInfo
-          .join(changeOwnerships,
-            bankInfo("fake_msisdn") === changeOwnerships("bib_id"),
-            "left_anti")
-
-        val cvModel = new CountVectorizerModel(iranianBanks.toArray)
-          .setInputCol("matched_banks")
-          .setOutputCol("bank_vector")
+          .join(broadcast(changeOwnerships), bankInfo("fake_msisdn") === changeOwnerships(bibID), "left_anti")
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)
 
         val vectorized = cvModel.transform(bankInfoFiltered)
 
-        val afterCount = bankInfoFiltered.count()
-        println(s"After filtering (bankInfoFiltered) count: $afterCount")
-        val beforeCount = bankInfo.count()
-        println(s"Before filtering (bankInfo) count: $beforeCount")
-        println(s"Dropped rows: ${beforeCount - afterCount}")
-//        Thread.sleep(10000)
+        logger.info(s"${fileType} created — count: " + vectorized.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"${fileType} lineage:\n" + vectorized.rdd.toDebugString)
 
         vectorized
     }
@@ -489,15 +661,43 @@ object DataReader {
   private val readRecharge: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "recharge" =>
+
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-        val rech = spark.read.parquet(appConfig.getString("Path.Recharge"))
+
+        val neededCols = Seq(
+          bibID, "recharge_value_amt", "recharge_dt", "origin_host_nm", "account_balance_before_amt", "account_balance_after_amt", "date_key"
+        )
+
+        val basePath = appConfig.getString("Path.Recharge")
+        val previousMonth = index - 1
+        val rechPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_RECHARGE",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_RECHARGE"
+        )
+
+        val recharge = spark.read.parquet(appConfig.getString("Path.Recharge"))
           .filter(col(bibID).isNotNull)
+          .select(neededCols.map(col): _*)
           .withColumn("recharge_dt", to_timestamp(col("recharge_dt"), "yyyyMMdd' 'HH:mm:ss"))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
           .drop(col("date_key"))
-          .repartition(300)
-        rech
+
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
+
+        val rechFiltered = recharge
+          .join(broadcast(changeOwnerships), Seq(bibID), "left_anti")
+          .filter(col(bibID).isNotNull)
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
+
+        logger.info("rechFiltered created — count: " + rechFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info("rechFiltered lineage:\n" + rechFiltered.rdd.toDebugString)
+
+        recharge
     }
   }
 

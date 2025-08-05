@@ -1,11 +1,9 @@
 package transform
 
-import core.Core.SourceCol.Recharge.{date, rechargeDt, rechargeValueAmt}
 import org.apache.spark.sql.Column
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable}
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
-import utils.Utils.CommonColumns.{bibID, dateKey, month_index, nidHash}
 
 
 object PostPaid extends DefaultParamsReadable[PostPaid] {
@@ -36,12 +34,6 @@ class PostPaid(override val uid: String) extends AbstractAggregator {
 
     case "account_status_active" => first(when(col("last_status").isin("Hard", "Soft"), 0).otherwise(1))
 
-//    case "total_credit_utilization_growth" => max(((col("total_bill_2")/col("total_credit_2"))-(col("total_bill")/col("total_credit")))/(col("total_bill")/col("total_credit")))
-//    case "credit_limit_change" => first((col("credit_limit_2") - col("credit_limit"))/ col("credit_limit"))
-//    case "credit_limit_growth_rate" => first((col("credit_limit_2") - col("credit_limit")) / col("credit_limit"))
-//    case "avl_credit_limit_growth" => first(col("total_credit_2") - col("total_bill_2") - (col("total_credit") + col("total_bill"))/(col("total_credit") - col("total_bill")))
-//    case "deposit_change" => first(col("deposit_amt_n_2") - col("deposit_amt_n") / col("deposit_amt_n"))
-
     case "total_credit_utilization_growth" => first((col("total_bill_2")/col("total_credit_2"))/(col("total_bill")/col("total_credit")) - 1)
 
     case "credit_limit_change" => max(when(col("row_number") === 2, col("credit_limit_change_2")).otherwise(0))
@@ -61,22 +53,12 @@ class PostPaid(override val uid: String) extends AbstractAggregator {
     val w = Window.partitionBy("fake_msisdn").orderBy("row_number")
 
     val result = Seq(
-//      "row_number" -> row_number().over(w),
 
       "total_credit" -> first(when(col("row_number") === 2, coalesce(col("credit_limit"), lit(0)) + coalesce(col("deposit_amt_n"), lit(0)))).over(w),
       "total_bill" -> first(when(col("row_number") === 2, coalesce(col("outstanding_balance"), lit(0)) + coalesce(col("unbilled_amount"), lit(0)))).over(w),
 
       "total_credit_2" -> first(when(col("row_number") === 2, coalesce(col("credit_limit"), lit(0)) + coalesce(col("deposit_amt_n"), lit(0)))).over(w),
       "total_bill_2" -> first(when(col("row_number") === 2, coalesce(col("outstanding_balance"), lit(0)) + coalesce(col("unbilled_amount"), lit(0)))).over(w),
-
-      "deposit_amt_n_2" -> first(when(col("row_number") === 2, coalesce(col("deposit_amt_n"), lit(0)))).over(w),
-      "credit_limit_2" -> first(when(col("row_number") === 2, coalesce(col("credit_limit"), lit(0)))).over(w),
-
-//      "total_credit_utilization_growth" ->
-//        ((last(col("outstanding_balance") + col("unbilled_amount"), ignoreNulls = true).over(w)/first(col("credit_limit") + col("deposit_amt_n"), ignoreNulls = true).over(w))-(col("total_bill")/col("total_credit")))/(col("total_bill")/col("total_credit")),
-
-      "total_credit_utilization_growth_first" -> first((col("total_bill_2")/col("total_credit_2"))/(col("total_bill")/col("total_credit")) - 1).over(w),
-      "total_credit_utilization_growth_last" -> last((col("total_bill_2")/col("total_credit_2"))/(col("total_bill")/col("total_credit")) - 1).over(w),
 
       "avl_credit_limit_growth" ->
         (first(col("credit_limit") + col("deposit_amt_n"), ignoreNulls = true).over(w) - first(col("outstanding_balance") + col("unbilled_amount"), ignoreNulls = true).over(w) - (col("total_credit") + col("total_bill")))/(col("total_credit") - col("total_bill")),
@@ -85,8 +67,6 @@ class PostPaid(override val uid: String) extends AbstractAggregator {
       "credit_limit_change_2" -> ((first(col("credit_limit")).over(w) - col("credit_limit")) / col("credit_limit")),
       "credit_limit_growth_rate_2" -> ((first(col("credit_limit")).over(w) - col("credit_limit")) / col("credit_limit")),
     )
-
-    result.foreach(x => println(x))
 
     result
   }

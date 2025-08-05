@@ -16,11 +16,9 @@ object Aggregate {
     case "PackagePurchase" => PackagePurchase()
     case "PackagePurchaseExtras" => PackagePurchaseExtras()
     case "HandsetPrice" => HandsetPrice()
-    case "HandsetPriceBrands" => HandsetPriceBrands()
     case "Arpu" => Arpu()
     case "ArpuChanges" => ArpuChanges()
     case "BankInfo" => BankInfo()
-    case "BankInfoGroupBy" => BankInfoGroupBy()
     case "Recharge" => Recharge()
     case "LoanAssign" => LoanAssign()
     case "LoanRec" => LoanRec()
@@ -56,7 +54,7 @@ object Aggregate {
     allNeededCols.foreach(x => logger.info(x))
 
     def getSource(name: String, featureTableMap: Map[String, List[String]], index: Int, indices: Seq[Int], maxRange: Int, allNeededCols: Seq[String], bibID: String): DataFrame = {
-      val commonCols = allNeededCols ++ Seq(if (name == "DomesticTravel" || name == "PackagePurchaseExtras" || name == "PackagePurchase" || name == "HandsetPrice"|| name == "HandsetPriceBrands" || name == "Arpu" || name == "ArpuChanges" || name == "BankInfo" || name == "BankInfoGroupBy" || name == "PostPaid" || name == "CreditManagement") "fake_msisdn" else bibID)
+      val commonCols = allNeededCols ++ Seq(if (name == "DomesticTravel" || name == "PackagePurchaseExtras" || name == "PackagePurchase" || name == "HandsetPrice"|| name == "HandsetPriceBrands" || name == "Arpu" || name == "ArpuChanges" || name == "BankInfo" || name == "PostPaid" || name == "CreditManagement") "fake_msisdn" else bibID)
       val reader = selectReader(name, featureTableMap)
       selectCols(setTimeRange(reader)(indices, maxRange))(commonCols.distinct)
     }

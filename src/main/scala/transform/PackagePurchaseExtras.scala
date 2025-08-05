@@ -2,7 +2,7 @@ package transform
 
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable}
 import org.apache.spark.sql.Column
-import org.apache.spark.sql.functions.{col, max, min, sum, mean,  when}
+import org.apache.spark.sql.functions.{col, max, sum,  when}
 
 object PackagePurchaseExtras extends DefaultParamsReadable[PackagePurchaseExtras] {
   def apply(): PackagePurchaseExtras = new PackagePurchaseExtras(Identifiable.randomUID("agg"))
@@ -30,9 +30,6 @@ class PackagePurchaseExtras(override val uid: String) extends AbstractAggregator
 
   def listProducedBeforeTransform: Seq[(String, Column)] = {
 
-    Seq(
-//      "amount_per_cnt" -> (col("amount") / col("cnt")),
-//      "binary_service_presence" -> when(col("service_type").isNotNull, 1).otherwise(0)
-    )
+    Seq()
   }
 }

@@ -54,10 +54,7 @@ abstract class AbstractAggregator extends AbstractTransformer{
       case "Arpu" => transformArpu(dataset)
       case "ArpuChanges" => transformArpuChanges(dataset)
       case "HandsetPrice" => transformHandsetPrice(dataset)
-      case "HandsetPriceBrands" => transformHandsetPriceBrands(dataset)
       case "BankInfo" => transformBankInfo(dataset)
-      case "BankInfoGroupBy" => transformBankInfoGroupBy(dataset)
-      case "Recharge" => transformRecharge(dataset)
       case "LoanAssign" => transformLoanAssign(dataset)
       case "LoanRec" => transformLoanRec(dataset)
       case "DomesticTravel" => transformDomestic(dataset)
@@ -75,7 +72,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
         .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
 
     logger.info("middle features created!")
-//    Thread.sleep(5000)
 
     val result = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
@@ -92,7 +88,6 @@ abstract class AbstractAggregator extends AbstractTransformer{
     }
 
     logger.info("features created!")
-//    Thread.sleep(5000)
 
     renamedDf
   }
@@ -131,13 +126,13 @@ abstract class AbstractAggregator extends AbstractTransformer{
       listProducedGrouped.getOrElse(false, Map())
         .foldLeft(dataset.toDF())((df, x) => df.withColumn(x._1, x._2))
 
-    val a = listProducedGrouped.getOrElse(true, Map())
+    val tmp = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-    val b = a.groupBy("fake_msisdn", "service_type").pivot(month_index, $(_indices))
-    val c = b.agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
-    val d = c.drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
+      .groupBy("fake_msisdn", "service_type").pivot(month_index, $(_indices))
+      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
+      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
 
-    val renamedDf = d.columns.foldLeft(d) { (df, colName) =>
+    val renamedDf = tmp.columns.foldLeft(tmp) { (df, colName) =>
       IndexedColumn.unapply(colName) match {
         case Some((_, name)) => df.withColumnRenamed(colName, name)
         case None            => df
@@ -150,38 +145,21 @@ abstract class AbstractAggregator extends AbstractTransformer{
 
   def transformPostPaid(dataset: Dataset[_]): DataFrame = {
 
-//    val w = Window.partitionBy("fake_msisdn").orderBy(month_index)
-
-//    val df = dataset.toDF().withColumn("row_number", row_number().over(w))
-
     val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
 
     val nonMonthIndexDependentDf =
       listProducedGrouped.getOrElse(false, Map())
         .foldLeft(dataset.toDF())((df, x) => df.withColumn(x._1, x._2))
 
-    nonMonthIndexDependentDf.printSchema()
 
-//    nonMonthIndexDependentDf.filter(col("fake_msisdn") === "DDF58D6723E0DA69DA45FDC01809F8E9").show(10, truncate = false)
-//    Thread.sleep(5000)
-
-    val result = listProducedGrouped.getOrElse(true, Map())
+    val postpaid = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-
-    result.filter(col("fake_msisdn") === "018B5E24A97654D3029C4CE8DAC57364").show(false)
-    println("result =================================")
-    Thread.sleep(2000)
-
-    val a = result.groupBy("fake_msisdn")
+      .groupBy("fake_msisdn")
       .pivot(month_index, $(_indices))
       .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
-    a.filter(col("fake_msisdn") === "018B5E24A97654D3029C4CE8DAC57364").show(false)
-    println("a =================================")
-    Thread.sleep(5000)
+      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
 
-    val b =   a.drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
-
-    val renamedDf = b.columns.foldLeft(b) { (df, colName) =>
+    val renamedDf = postpaid.columns.foldLeft(postpaid) { (df, colName) =>
       IndexedColumn.unapply(colName) match {
         case Some((_, name)) => df.withColumnRenamed(colName, name)
         case None            => df
@@ -336,33 +314,12 @@ abstract class AbstractAggregator extends AbstractTransformer{
     agg
   }
 
-
-
-  def transformBankInfo(dataset: Dataset[_]): DataFrame = {
-    val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
-
-    val nonMonthIndexDependentDf =
-      listProducedGrouped.getOrElse(false, Map())
-          .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
-
-    val BankInfo = listProducedGrouped.getOrElse(true, Map())
-      .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-      .groupBy("fake_msisdn")
-      .pivot(month_index, $(_indices))
-      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
-      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
-
-    BankInfo
-  }
-
-  private def transformBankInfoGroupBy(dataset: Dataset[_]): DataFrame = {
+  private def transformBankInfo(dataset: Dataset[_]): DataFrame = {
 
     val windowSpec = Window.partitionBy("fake_msisdn", "bank_name", month_index)
+
     val aggDf = dataset
       .withColumn("total_sms_count", sum(col("sms_cnt")).over(windowSpec))
-
-    aggDf.filter(col("fake_msisdn") === "E5C1BC698A695885E001EB00E868B243").show(1000)
-    Thread.sleep(10000)
 
     val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
 
@@ -372,21 +329,13 @@ abstract class AbstractAggregator extends AbstractTransformer{
 
     val BankInfo = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-
-    BankInfo.filter(col("fake_msisdn") === "E5C1BC698A695885E001EB00E868B243").show(1000)
-    Thread.sleep(10000)
-
-    val before =  BankInfo.groupBy("fake_msisdn")
-
-    val temp =  before.pivot(month_index, $(_indices))
-
-    val b =  temp.agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
+      .groupBy("fake_msisdn")
+      .pivot(month_index, $(_indices))
+      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
 
-    b.filter(col("fake_msisdn") === "E5C1BC698A695885E001EB00E868B243").show(1000)
-    Thread.sleep(10000)
 
-    val renamedDf = b.columns.foldLeft(b) { (df, colName) =>
+    val renamedDf = BankInfo.columns.foldLeft(BankInfo) { (df, colName) =>
       IndexedColumn.unapply(colName) match {
         case Some((_, name)) => df.withColumnRenamed(colName, name)
         case None            => df
@@ -398,17 +347,48 @@ abstract class AbstractAggregator extends AbstractTransformer{
 
   def transformHandsetPrice(dataset: Dataset[_]): DataFrame = {
 
+    val windowSpec = Window.partitionBy("fake_msisdn", "handset_model", month_index)
+    val aggDf = dataset
+      .withColumn("sum_cnt_of_days", sum(col("cnt_of_days"))
+        .over(windowSpec))
+
     val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
 
     listProducedGrouped.foreach(x => println(x))
 
     val nonMonthIndexDependentDf =
       listProducedGrouped.getOrElse(false, Map())
-        .foldLeft(dataset.toDF())((df, x) => df.withColumn(x._1, x._2))
+        .foldLeft(aggDf)((df, x) => df.withColumn(x._1, x._2))
+
+    val handset = listProducedGrouped.getOrElse(true, Map())
+      .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
+      .groupBy("fake_msisdn")
+      .pivot(month_index, $(_indices))
+      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
+      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
+
+    val renamedDf = handset.columns.foldLeft(handset) { (df, colName) =>
+      IndexedColumn.unapply(colName) match {
+        case Some((_, name)) => df.withColumnRenamed(colName, name)
+        case None            => df
+      }
+    }
+
+    renamedDf
+  }
+
+
+  def transformRecharge(dataset: Dataset[_]): DataFrame = {
+
+    val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
+
+    val nonMonthIndexDependentDf =
+      listProducedGrouped.getOrElse(false, Map())
+        .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
 
     val result = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-      .groupBy("fake_msisdn")
+      .groupBy(bibID)
       .pivot(month_index, $(_indices))
       .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
@@ -423,111 +403,57 @@ abstract class AbstractAggregator extends AbstractTransformer{
     renamedDf
   }
 
-  def transformHandsetPriceBrands(dataset: Dataset[_]): DataFrame = {
+  def transformLoanAssign(dataset: Dataset[_]): DataFrame = {
+
+    dataset.show(15, truncate = false)
+    Thread.sleep(10000)
 
     val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
 
-    listProducedGrouped.foreach(x => println(x))
-
     val nonMonthIndexDependentDf =
       listProducedGrouped.getOrElse(false, Map())
-        .foldLeft(dataset.toDF())((df, x) => df.withColumn(x._1, x._2))
+        .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
 
-    val result = listProducedGrouped.getOrElse(true, Map())
+    val loanAssign = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
+      .groupBy(bibID)
+      .pivot(month_index, $(_indices))
+      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
+      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
 
-//    result.show(5, false)
-//    Thread.sleep(2000)
-
-    val b = result.groupBy("fake_msisdn", "handset_brand")
-    val c = b.pivot(month_index, $(_indices))
-    val d = c.agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
-
-//    d.show(5, false)
-//    Thread.sleep(2000)
-
-    val j = d.drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
-
-//    j.show(20, false)
-//    Thread.sleep(2000)
-
-    val renamedDf = j.columns.foldLeft(j) { (df, colName) =>
+    val renamedDf = loanAssign.columns.foldLeft(loanAssign) { (df, colName) =>
       IndexedColumn.unapply(colName) match {
         case Some((_, name)) => df.withColumnRenamed(colName, name)
         case None            => df
       }
     }
 
-    renamedDf.show(5)
-    Thread.sleep(5000)
-
     renamedDf
-  }
-
-  def transformRecharge(dataset: Dataset[_]): DataFrame = {
-
-    val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
-
-    val nonMonthIndexDependentDf =
-      listProducedGrouped.getOrElse(false, Map())
-        .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
-
-    println(listProducedGrouped)
-    println(nonMonthIndexDependentDf)
-
-    listProducedGrouped.getOrElse(true, Map())
-      .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-      .groupBy(bibID)
-      .pivot(month_index, $(_indices))
-      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
-      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
-  }
-
-  def transformLoanAssign(dataset: Dataset[_]): DataFrame = {
-
-    dataset.show(15, truncate = false)
-
-    val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
-
-    val nonMonthIndexDependentDf =
-      listProducedGrouped.getOrElse(false, Map())
-        .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
-
-    println(listProducedGrouped)
-    println(nonMonthIndexDependentDf)
-
-    listProducedGrouped.getOrElse(true, Map())
-      .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
-      .groupBy(bibID)
-      .pivot(month_index, $(_indices))
-      .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
-      .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
   }
 
   def transformLoanRec(dataset: Dataset[_]): DataFrame = {
 
-    dataset.show(15, truncate = false)
-
     val listProducedGrouped = listProducedBeforeTransform.groupBy(x => getLeafNeededColumns(x._2).contains(month_index))
 
     val nonMonthIndexDependentDf =
       listProducedGrouped.getOrElse(false, Map())
         .foldLeft(dataset.toDF)((df, x) => df.withColumn(x._1, x._2))
 
-    println(listProducedGrouped)
-    println(nonMonthIndexDependentDf)
-
-    listProducedGrouped.getOrElse(true, Map())
+    val loanRec = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
       .groupBy(bibID)
       .pivot(month_index, $(_indices))
       .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
+
+    val renamedDf = loanRec.columns.foldLeft(loanRec) { (df, colName) =>
+      IndexedColumn.unapply(colName) match {
+        case Some((_, name)) => df.withColumnRenamed(colName, name)
+        case None            => df
+      }
+    }
+
+    renamedDf
   }
 
 }
-
-//    val oldColumns = aggDf.columns
-//    val monthColumns = oldColumns.drop(3)
-//    val newMonthNames = Seq("fake_msisdn", "bank_name", month_index) ++ monthColumns.zipWithIndex.map { case (_, idx) => s"month_${idx + 1}" }
-//    val finalDf = aggDf.toDF(newMonthNames: _*)
