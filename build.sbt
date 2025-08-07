@@ -35,6 +35,7 @@ lazy val root = (project in file("."))
       "io.prometheus" % "simpleclient_hotspot" % "0.16.0",
       "io.prometheus" % "simpleclient" % "0.16.0",
 
+
     ),
 
     // --------------------- Assembly Settings ---------------------

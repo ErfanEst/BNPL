@@ -24,23 +24,30 @@ class HandsetPrice(override val uid: String) extends AbstractAggregator {
 
   def aggregator(name: String): Column = name match {
 
+    case "samsung_usage_ratio" => sum(when(col("handset_brand") === "SAMSUNG",  col("cnt_of_days")))
+    case "xiaomi_usage_ratio" => sum(when(col("handset_brand") === "XIAOMI",  col("cnt_of_days")))
+    case "apple_usage_ratio" => sum(when(col("handset_brand") === "APPLE",  col("cnt_of_days")))
+    case "huawei_usage_ratio" => sum(when(col("handset_brand") === "HUAWEI",  col("cnt_of_days")))
+
+
     case "handset_v[0]" => sum(when(getVectorElement(col("handsetVec"), lit(0)) > 0, 1).otherwise(0))
     case "handset_v[1]" => sum(when(getVectorElement(col("handsetVec"), lit(1)) > 0, 1).otherwise(0))
     case "handset_v[2]" => sum(when(getVectorElement(col("handsetVec"), lit(2)) > 0, 1).otherwise(0))
     case "handset_v[3]" => sum(when(getVectorElement(col("handsetVec"), lit(3)) > 0, 1).otherwise(0))
     case "handset_v[4]" => sum(when(getVectorElement(col("handsetVec"), lit(4)) > 0, 1).otherwise(0))
 
-    case "sum_unique_handsets" => max("total_unique_handsets")
-    case "sum_unique_brands" => max("total_unique_brands")
+    case "total_unique_handsets" => size(collect_set("handset_model"))
+    case "total_unique_brands" => size(collect_set("handset_brand"))
 
-    case "brand_diversity_ratio" => max(col("total_unique_handsets")/col("total_unique_brands"))
+    case "brand_diversity_ratio" => size(collect_set("handset_model"))/size(collect_set("handset_brand"))
 
-    case "sum_usage_days" => sum("cnt_of_days")
-    case "max_days_single_handset" => max("cnt_of_days")
+    case "total_usage_days" => sum("cnt_of_days")
 
-    case "handset_stability" => first(col("max_days_single")/col("total_usage_days"))
+    case "max_days_single_handset" => max("sum_cnt_of_days")
 
-    case "avg_days_per_handset" => max(col("total_usage_days")/col("total_unique_handsets"))
+    case "handset_stability" => max("sum_cnt_of_days")/sum("sum_cnt_of_days")
+
+    case "avg_days_per_handset" => sum("cnt_of_days")/size(collect_set("handset_model"))
 
   }
 
@@ -48,14 +55,8 @@ class HandsetPrice(override val uid: String) extends AbstractAggregator {
 
   def listProducedBeforeTransform: Seq[(String, Column)] = {
 
-    val w2 = Window.partitionBy("fake_msisdn", month_index)
-
     Seq(
-      "total_unique_handsets" -> size(collect_set("handset_model").over(w2)),
-      "total_unique_brands" -> size(collect_set("handset_brand").over(w2)),
-      "total_usage_days" -> sum("cnt_of_days").over(w2),
-      "max_days_single" -> max("cnt_of_days").over(w2),
-      "brand_days" -> sum("cnt_of_days").over(w2),
+      "sum_cnt_of_days" -> col("sum_cnt_of_days"),
     )
 
   }

@@ -87,21 +87,21 @@ aggregation:
       avg_Pay_Bill: [ 1, 2 ]
       avg_TDD_BOLTON: [ 1 ,2 ]
       avg_OTHER: [ 1, 2 ]
-#      service_v[0]: [1, 2]
-#      service_v[1]: [1, 2]
-#      service_v[2]: [1, 2]
-#      service_v[3]: [1, 2]
-#      service_v[4]: [1, 2]
-#      service_v[5]: [1, 2]
-#      service_v[6]: [1, 2]
-#      service_cnt_v[0]: [1, 2]
-#      service_cnt_v[1]: [1, 2]
-#      service_cnt_v[2]: [1, 2]
-#      service_cnt_v[3]: [1, 2]
-#      service_cnt_v[4]: [1, 2]
-#      service_cnt_v[5]: [1, 2]
-#      service_cnt_v[6]: [1, 2]
-#      service_cnt_v[7]: [1, 2]
+  #      service_v[0]: [1, 2]
+  #      service_v[1]: [1, 2]
+  #      service_v[2]: [1, 2]
+  #      service_v[3]: [1, 2]
+  #      service_v[4]: [1, 2]
+  #      service_v[5]: [1, 2]
+  #      service_v[6]: [1, 2]
+  #      service_cnt_v[0]: [1, 2]
+  #      service_cnt_v[1]: [1, 2]
+  #      service_cnt_v[2]: [1, 2]
+  #      service_cnt_v[3]: [1, 2]
+  #      service_cnt_v[4]: [1, 2]
+  #      service_cnt_v[5]: [1, 2]
+  #      service_cnt_v[6]: [1, 2]
+  #      service_cnt_v[7]: [1, 2]
 
   - name: Arpu
     tables: ["arpu"]
@@ -148,26 +148,6 @@ aggregation:
       gprs_revenue_change: [2]
       voice_revenue_change: [2]
 
-  - name: HandsetPriceBrands
-    tables: ["handset_price_brands"]
-    features:
-#      handset_v[0]: [1, 2]
-#      handset_v[1]: [1, 2]
-#      handset_v[2]: [1, 2]
-#      handset_v[3]: [1, 2]
-#      handset_v[4]: [1, 2]
-#      sum_unique_handsets: [1, 2]
-#      sum_unique_brands: [1, 2]
-#      brand_diversity_ratio: [1, 2]
-#      sum_usage_days: [1, 2]
-#      max_days_single_handset: [1, 2]
-#      handset_stability: [1, 2]
-#      avg_days_per_handset: [1, 2]
-      samsung_usage_ratio: [1, 2]
-#      xiaomi_usage_ratio: [1, 2]
-#      apple_usage_ratio: [1, 2]
-#      huawei_usage_ratio: [1, 2]
-
   - name: HandsetPrice
     tables: ["handset_price"]
     features:
@@ -176,25 +156,26 @@ aggregation:
       handset_v[2]: [1, 2]
       handset_v[3]: [1, 2]
       handset_v[4]: [1, 2]
-      sum_unique_handsets: [1, 2]
-      sum_unique_brands: [1, 2]
+      total_unique_handsets: [1, 2]
+      total_unique_brands: [1, 2]
       brand_diversity_ratio: [1, 2]
-      sum_usage_days: [1, 2]
+      total_usage_days: [1, 2]
       max_days_single_handset: [1, 2]
       handset_stability: [1, 2]
       avg_days_per_handset: [1, 2]
-#      avg_days_per_handset: [1, 2]
-#      samsung_usage_ratio: [1, 2]
-#      xiaomi_usage_ratio: [1, 2]
-#      apple_usage_ratio: [1, 2]
-#      huawei_usage_ratio: [1, 2]
+
+      #      avg_days_per_handset: [1, 2]
+      samsung_usage_ratio: [1, 2]
+      xiaomi_usage_ratio: [1, 2]
+      apple_usage_ratio: [1, 2]
+      huawei_usage_ratio: [1, 2]
+
+  #  - name: BankInfo
+  #    tables: ['customer_person_type_bank_info']
+  #    features:
+  #      total_bank_count: [1, 2]
 
   - name: BankInfo
-    tables: ['customer_person_type_bank_info']
-    features:
-      total_bank_count: [1, 2]
-
-  - name: BankInfoGroupBy
     tables: ['customer_person_type_bank_info']
     features:
       total_bank_count: [1, 2]
@@ -202,21 +183,21 @@ aggregation:
       month_end_sms_ratio: [1, 2]
       bank_loyalty_ratio_first: [1]
       bank_loyalty_ratio_both: [2]
-#      temp: [1, 2]
-#      avg_daily_bank_sms_: [1, 2]
-#      isMellat: [1, 2]
-#      isTejarat: [1, 2]
-#      isKeshavarzi: [1, 2]
-#      isRefah: [1, 2]
-#      isMelli: [1, 2]
-#      isPasargad: [1, 2]
-#      isMaskan: [1, 2]
-#      isResalat: [1, 2]
-#      isAyandeh: [1, 2]
-#      isParsian: [1, 2]
-#      isEnbank: [1, 2]
-#      isSina: [1, 2]
-#      isIz: [1, 2]
+  #      temp: [1, 2]
+  #      avg_daily_bank_sms_: [1, 2]
+  #      isMellat: [1, 2]
+  #      isTejarat: [1, 2]
+  #      isKeshavarzi: [1, 2]
+  #      isRefah: [1, 2]
+  #      isMelli: [1, 2]
+  #      isPasargad: [1, 2]
+  #      isMaskan: [1, 2]
+  #      isResalat: [1, 2]
+  #      isAyandeh: [1, 2]
+  #      isParsian: [1, 2]
+  #      isEnbank: [1, 2]
+  #      isSina: [1, 2]
+  #      isIz: [1, 2]
 
   - name: Recharge
     tables: ['recharge']
@@ -245,7 +226,7 @@ aggregation:
   - name: LoanRec
     tables: ['loan_rec']
     features:
-      mean_time_to_repay: [1, 2]
+      mean_time_to_repay: [2]
 
   - name: DomesticTravel
     tables: ['domestic_travel']
@@ -294,5 +275,6 @@ aggregation:
       avg_days_ontime_2: [2]
       cnt_much_delayed_paid: [2]
       cnt_much_delayed_notpaid: [2]
+
 
 
