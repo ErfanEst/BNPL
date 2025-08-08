@@ -140,14 +140,6 @@ aggregation:
       gprs_revenue_change: [2]
       voice_revenue_change: [2]
 
-  - name: ArpuChanges
-    tables: ["arpu_changes"]
-    features:
-      res_com_score_change: [2]
-      sms_revenue_change: [2]
-      gprs_revenue_change: [2]
-      voice_revenue_change: [2]
-
   - name: HandsetPrice
     tables: ["handset_price"]
     features:
@@ -169,11 +161,6 @@ aggregation:
       xiaomi_usage_ratio: [1, 2]
       apple_usage_ratio: [1, 2]
       huawei_usage_ratio: [1, 2]
-
-#  - name: BankInfo
-#    tables: ['customer_person_type_bank_info']
-#    features:
-#      total_bank_count: [1, 2]
 
   - name: BankInfo
     tables: ['customer_person_type_bank_info']

@@ -33,7 +33,6 @@ object DataReader {
     case x if List("package_purchase_extras").contains(x) => readPackagePurchase(x, index)
     case x if List("handset_price").contains(x) => readHandSetPrice(x, index)
     case x if List("arpu").contains(x) => readArpu(x, index)
-    case x if List("arpu_changes").contains(x) => readArpuChanges(x, index)
     case x if List("customer_person_type_bank_info").contains(x) => readBankInfo(x, index)
     case x if List("recharge").contains(x) => readRecharge(x, index)
     case x if List("loan_assign").contains(x) => readLoanAssign(x, index)
@@ -560,40 +559,43 @@ object DataReader {
         val w = Window.partitionBy("fake_msisdn").orderBy(month_index)
         val wCount = Window.partitionBy("fake_msisdn")
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
+
+        val neededCols = Seq("fake_msisdn", "contract_type", "registration_date", "gender", "age", "modem_model", "flag_sim_tier", "site_type", "res_com_score", "voice_revenue", "gprs_revenue", "sms_revenue", "subscription_revenue", "date_key")
+
+        val basePath = appConfig.getString("Path.Arpu")
+        val previousMonth = index - 1
+        val arpuPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_ARPU",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_ARPU"
+        )
+
         val arpu = spark.read.parquet(appConfig.getString("Path.Arpu"))
+          .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
-          .drop("month_id")
           .drop("date_key")
-          .dropDuplicates()
           .na.fill(0)
           .withColumn("dense_rank", dense_rank().over(w))
           .withColumn("count_dense_rank", size(collect_set("dense_rank").over(wCount)))
 
-        arpu.filter(col("fake_msisdn") === "0CA5143503557C9879D14DE325D710A3").show(false)
-        Thread.sleep(3000)
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
 
-        arpu
-    }
-  }
-
-  private val readArpuChanges: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
-
-    fileType match {
-      case "arpu_changes" =>
-
-        val w = Window.partitionBy("fake_msisdn").orderBy(month_index)
-
-        val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-        val arpu = spark.read.parquet(appConfig.getString("Path.Arpu"))
-          .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
-          .withColumn(month_index, monthIndexOfUDF(col("date")))
-          .drop("month_id")
-          .drop("date_key")
+        // Broadcast anti-join to avoid shuffle
+        val arpuFiltered = arpu
+          .join(broadcast(changeOwnerships), arpu("fake_msisdn") === changeOwnerships(bibID), "left_anti")
           .dropDuplicates()
-          .withColumn("dense_rank", dense_rank().over(w))
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
 
-        arpu
+        logger.info(s"${fileType} created — count: " + arpuFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"${fileType} lineage:\n" + arpuFiltered.rdd.toDebugString)
+
+        arpuFiltered.filter(col("fake_msisdn") === "0014562B0E42EF6C5C597FBF8CFB6F2D").show(false)
+        Thread.sleep(10000)
+
+        arpuFiltered
     }
   }
 

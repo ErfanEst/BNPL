@@ -15,7 +15,6 @@ class BankInfo(override val uid: String) extends AbstractAggregator {
 
   def aggregator(name: String): Column = name match {
 
-//    case "primary_bank_name" => first(when(col("rank") === 1, col("bank_name")))
     case "total_bank_count" => countDistinct(col("matched_banks").getItem(0))
     case "bank_active_days_count" => countDistinct("date_key")
     case "month_end_sms_ratio" => first(col("month_end_sms_count") / col("total_all_banks_sms_count_Extra"))
@@ -35,17 +34,12 @@ class BankInfo(override val uid: String) extends AbstractAggregator {
   // Transformations applied before aggregation
   def listProducedBeforeTransform: Seq[(String, Column)] = {
 
-    val windowSpec = Window.partitionBy("fake_msisdn").orderBy(desc("total_sms_count"))
     val windowSpec2 = Window.partitionBy("fake_msisdn", month_index)
-    val w2 = Window.partitionBy("fake_msisdn", month_index).orderBy(desc("total_sms_count"))
     val w = Window.partitionBy("fake_msisdn")
     val w3 = Window.partitionBy("fake_msisdn", "bank_name").orderBy(desc("total_sms_count"))
 
     val monthWindow = Window.partitionBy("fake_msisdn", "month_index")
       .orderBy(col("total_sms_count").desc)
-    val overallWindow = Window.partitionBy("fake_msisdn")
-      .orderBy(sum(col("total_sms_count")).over(w3))
-
 
     Seq(
       ("rank_in_month", row_number().over(monthWindow)),
@@ -55,7 +49,6 @@ class BankInfo(override val uid: String) extends AbstractAggregator {
       ("primary_bank_both_months", first(when(col("rank_overall") === 1, col("bank_name")), ignoreNulls = true).over(w)),
 
       ("total_all_banks_sms_count_Extra", sum(col("sms_cnt")).over(windowSpec2)),
-//      ("total_sms_count_per_bank", sum(col("sms_count")).over(windowSpec2)),
       ("distinct_total_sms_count", collect_set(col("total_sms_count")).over(w)),
       ("distinct_sum", expr("aggregate(distinct_total_sms_count, 0L, (acc, x) -> acc + x)")),
       ("total_all_banks_sms_count", when(col("distinct_sum").isNotNull, col("distinct_sum"))),
@@ -65,7 +58,6 @@ class BankInfo(override val uid: String) extends AbstractAggregator {
           .otherwise(0)
       ).over(windowSpec2)),
       ("primary_bank_sms_count", sum(when(col("rank") === 1, col("sms_cnt"))).over(windowSpec2))
-
     )
   }
 }

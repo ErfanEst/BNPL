@@ -10,12 +10,13 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.DataFrame
 import org.rogach.scallop.{ScallopConf, ScallopOption}
 
+import scala.jdk.CollectionConverters.asScalaSetConverter
+
 object FeatureMaker {
 
   var index: Int = _
 
   def main(args: Array[String]): Unit = {
-
 
     val startTime = System.currentTimeMillis()
     println(s"Program started at: ${new java.util.Date(startTime)}")
@@ -162,79 +163,79 @@ object FeatureMaker {
 
       case "Arpu" =>
 
-        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
-        val aggregatedDataFrames: Seq[DataFrame] =
-          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
-
-        println("The data frame was created successfully...")
-
-        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq("fake_msisdn"), "full_outer")
-        }
-
-        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully.")
-
-      case "ArpuChanges" =>
-
-        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
-        println(outputColumns)
-        println(",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,")
-        println(name)
-        Thread.sleep(3000)
-
-        val aggregatedDataFrames: Seq[DataFrame] =
-          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
-
-        println("The data frame was created successfully...")
-
-        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq("fake_msisdn"), "full_outer")
-        }
-
-        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully.")
-
-      case "Recharge" =>
         val outputColumns = reverseMapOfList(
           aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
         )
 
-        // Step 1 — Aggregate for two months
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly Recharge DFs")
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
 
         // Step 2 — Join in-memory
-        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq(bibID), "outer"))
-        val repartitioned = joinedDF.repartition(144, col(bibID)).cache()
-        repartitioned.count()  // trigger cache
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq("fake_msisdn"), "outer"))
+        val repartitioned = joinedDF.repartition(144, col("fake_msisdn")).cache()
+        repartitioned.count() // Trigger cache
+        repartitioned.filter(col("fake_msisdn") === "0CA5143503557C9879D14DE325D710A3").show()
 
+        repartitioned.createOrReplaceTempView("finalDF_view")
         logger.info("Join complete")
         logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
 
-        // Step 3 — Fill missing values using defaults
-        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.recharge_features")
-        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
-          .map(_.toString.split("=")(0).trim)
-          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
-          .toMap
+        // Step 3 — Fill nulls with defaults from config
+        val featureDefaultsConfig = appConfig.getConfig(s"featureDefaults.${name.toLowerCase}")
 
+        // ✅ Proper way to extract key-value pairs from Typesafe Config
+        val featureDefaults: Map[String, AnyRef] = featureDefaultsConfig.root().entrySet().asScala.map { entry =>
+          val key = entry.getKey
+          val value = entry.getValue.unwrapped() // extract raw value (String, Int, etc.)
+          key -> value
+        }.toMap
+
+        // Log extracted keys
+        logger.info(s"Extracted default keys from config: ${featureDefaults.keys.mkString(", ")}")
+
+        // Apply default values to DataFrame
         var finalDF = repartitioned
+
         featureDefaults.foreach { case (colName, defaultVal) =>
           if (finalDF.columns.contains(colName)) {
-            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
+            val valueToFill: Option[Any] = defaultVal match {
+              case query: String if query.trim.toLowerCase.startsWith("select") =>
+                try {
+                  logger.info(s"Running query to fill '$colName': $query")
+                  val queryResult = spark.sql(query)
+                  val value = queryResult.first().get(0)
+                  logger.info(s"Query result for '$colName' = $value")
+                  Some(value)
+                } catch {
+                  case e: Exception =>
+                    logger.warn(s"Failed to run query for column '$colName': $query", e)
+                    None
+                }
+              case _ =>
+                logger.info(s"Filling nulls in '$colName' with static default: $defaultVal")
+                Some(defaultVal)
+            }
+
+            valueToFill.foreach { v =>
+              finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(v)))
+            }
+          } else {
+            logger.warn(s"Column '$colName' not found in DataFrame; skipping default fill")
           }
         }
 
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
+        finalDF.filter(col("fake_msisdn") === "0CA5143503557C9879D14DE325D710A3").show()
+        Thread.sleep(10000)
+
         // Step 4 — Final write
         val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
         finalDF.write.mode("overwrite").parquet(outPath)
-        logger.info(s"Recharge task completed: Final output written to $outPath")
+        logger.info(s"${name} task completed: Final output written to $outPath")
 
 
       case "LoanAssign" =>
