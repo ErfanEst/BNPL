@@ -53,15 +53,15 @@ object DataReader {
           "fake_msisdn", "credit_amount", "credit_assigned_date", "loan_id", "loan_amount", "loan_status", "installment_id", "installment_amount", "installment_duedate", "days_delayed", "date_key"
         )
 
-        val basePath = appConfig.getString("Path.Recharge")
+        val basePath = appConfig.getString("Path.CreditManagement")
 
         val previousMonth = index - 1
         val creditPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_CREDIT_MANAGEMENT",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_CREDIT_MANAGEMENT"
+          s"$basePath/$previousMonth/DEFAULT.BNPL_CREDIT_MANAGEMENT",
+          s"$basePath/$index/DEFAULT.BNPL_CREDIT_MANAGEMENT"
         )
 
-        val creditRaw = spark.read.parquet(appConfig.getString("Path.CreditManagement"))
+        val creditRaw = spark.read.parquet(creditPaths: _*)
           .select(neededCols.map(col): _*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -138,15 +138,15 @@ object DataReader {
           "fake_msisdn", "credit_limit", "deposit_amt_n", "outstanding_balance", "unbilled_amount", "last_status", "last_payment_date", "avl_credit_limit", "suspension_flag", "month_id", "date_key"
         )
 
-        val basePath = appConfig.getString("Path.Recharge")
+        val basePath = appConfig.getString("Path.PostPaid")
 
         val previousMonth = index - 1
         val poatpaidPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_POST_PAID",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_POST_PAID"
+          s"$basePath/$previousMonth/DEFAULT.BNPL_POSTPAID_CREDIT_HISTORY",
+          s"$basePath/$index/DEFAULT.BNPL_POSTPAID_CREDIT_HISTORY"
         )
 
-        val postPaid = spark.read.parquet(appConfig.getString("Path.PostPaid"))
+        val postPaid = spark.read.parquet(poatpaidPaths: _*)
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -187,11 +187,11 @@ object DataReader {
 
         val previousMonth = index - 1
         val domesticPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_DOMESTICTRAVEL",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_DOMESTICTRAVEL"
+          s"$basePath/$previousMonth/DEFAULT.BNPL_DOMESTIC_TRAVELERS",
+          s"$basePath/$index/DEFAULT.BNPL_DOMESTIC_TRAVELERS"
         )
 
-        val domestic = spark.read.parquet(appConfig.getString("Path.DomesticTravel"))
+        val domestic = spark.read.parquet(domesticPaths: _*)
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -229,11 +229,11 @@ object DataReader {
         val basePath = appConfig.getString("Path.PackagePurchase")
         val previousMonth = index - 1
         val pkgPurchasePaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_PACKAGE_PURCHASE",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_PACKAGE_PURCHASE"
+          s"$basePath/$previousMonth/DEFAULT.BNPL_PACKAGE_PURCHASE",
+          s"$basePath/$index/DEFAULT.BNPL_PACKAGE_PURCHASE"
         )
 
-        val packagePurchase = spark.read.parquet(appConfig.getString("Path.PackagePurchase"))
+        val packagePurchase = spark.read.parquet(pkgPurchasePaths: _*)
           .select(neededCols.map(col):_*)
           .filter(col("amount") > lit(0) && col("cnt") > lit(0))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -271,11 +271,11 @@ object DataReader {
         val basePath = appConfig.getString("Path.LoanAssign")
         val previousMonth = index - 1
         val loanAssignPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGN",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGN"
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGNEE",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGNEE"
         )
 
-        val loanAssign = spark.read.parquet(appConfig.getString("Path.LoanAssign"))
+        val loanAssign = spark.read.parquet(loanAssignPaths: _*)
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -320,7 +320,7 @@ object DataReader {
           s"$basePathRec/$index/DEFAULT.BNPL_AAT_LABS_LOAN_REC"
         )
 
-        val recFeat = spark.read.parquet(appConfig.getString("Path.LoanRec"))
+        val recFeat = spark.read.parquet(loanRecPaths: _*)
           .select(neededColsRec.map(col):_*)
           .filter(col("bib_id").isNotNull)
           .withColumn("date_l", to_date(col("date_key"), "yyyyMMdd"))
@@ -341,7 +341,7 @@ object DataReader {
           s"$basePathAssign/$index/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGN"
         )
 
-        val loanAssignDf = spark.read.parquet(appConfig.getString("Path.LoanAssign"))
+        val loanAssignDf = spark.read.parquet(loanAssignPaths: _*)
           .select(neededColsAssign.map(col):_*)
           .filter(col("bib_id").isNotNull)
           .withColumn("date_r", to_date(col("date_key"), "yyyyMMdd"))
@@ -389,11 +389,11 @@ object DataReader {
         val basePath = appConfig.getString("Path.UserInfo")
         val previousMonth = index - 1
         val userInfoPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_USERINFO",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_USERINFO"
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_CUSTOMER_INFO_BALANCE_SITEID",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_CUSTOMER_INFO_BALANCE_SITEID"
         )
 
-        val user = spark.read.parquet(appConfig.getString("Path.UserInfo"))
+        val user = spark.read.parquet(userInfoPaths: _*)
           .select(neededCols.map(col):_*)
           .filter(col(bibID).isNotNull)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -429,12 +429,12 @@ object DataReader {
 
         val basePath = appConfig.getString("Path.Package")
         val previousMonth = index - 1
-        val userInfoPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_PACKAGE",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_PACKAGE"
+        val packagePaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_ONLINE_BOLTON",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_ONLINE_BOLTON"
         )
 
-        val pkg = spark.read.parquet(appConfig.getString("Path.Package"))
+        val pkg = spark.read.parquet(packagePaths: _*)
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -464,21 +464,21 @@ object DataReader {
     fileType match {
       case "cdr" =>
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-//        val basePath = appConfig.getString("Path.CDR")
-          val previousMonth = index - 1
-//        val cdrPaths = Seq(
-//          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_CDR",
-//          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_CDR"
-//        )
+        val basePath = appConfig.getString("Path.CDR")
+        val previousMonth = index - 1
+        val cdrPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_CDR",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_CDR"
+        )
 
-        //logger.info(s"Loading CDR paths: $cdrPaths")
+        logger.info(s"Loading CDR paths: $cdrPaths")
 
         val neededCols = Seq(
           bibID, "sms_count", "voice_count",
           "call_duration", "gprs_usage", "voice_session_cost", "date_key"
         )
 
-        val cdr = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_AAT_LABS_CDR")
+        val cdr = spark.read.parquet(cdrPaths: _*)
           .filter(col(bibID).isNotNull)
           .select(neededCols.map(col): _*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -516,11 +516,11 @@ object DataReader {
         val basePath = appConfig.getString("Path.HandsetPrice")
         val previousMonth = index - 1
         val handsetPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_HANDSETPRICE",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_HANDSETPRICE"
+          s"$basePath/$previousMonth/DEFAULT.BNPL_HANDSET_PRICE",
+          s"$basePath/$index/DEFAULT.BNPL_HANDSET_PRICE"
         )
 
-        var handsetPrice = spark.read.parquet(appConfig.getString("Path.HandsetPrice"))
+        var handsetPrice = spark.read.parquet(handsetPaths: _*)
           .select(neededCols.map(col):_*)
           .withColumn("handset_brand_array", array("handset_brand"))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -610,8 +610,8 @@ object DataReader {
         val basePath = appConfig.getString("Path.BankInfo")
         val previousMonth = index - 1
         val handsetPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_BANKINFO",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_BANKINFO"
+          s"$basePath/$previousMonth/DEFAULT.PERSON_TYPE_AND_BANK_INFO",
+          s"$basePath/$index/DEFAULT.PERSON_TYPE_AND_BANK_INFO"
         )
 
         val iranianBanks = Seq(
@@ -632,7 +632,7 @@ object DataReader {
           }
         }
 
-        val bankInfo = spark.read.parquet(appConfig.getString("Path.BankInfo"))
+        val bankInfo = spark.read.parquet(handsetPaths: _*)
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -676,7 +676,7 @@ object DataReader {
           s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_RECHARGE"
         )
 
-        val recharge = spark.read.parquet(appConfig.getString("Path.Recharge"))
+        val recharge = spark.read.parquet(rechPaths: _*)
           .filter(col(bibID).isNotNull)
           .select(neededCols.map(col): _*)
           .withColumn("recharge_dt", to_timestamp(col("recharge_dt"), "yyyyMMdd' 'HH:mm:ss"))
