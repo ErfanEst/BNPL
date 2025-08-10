@@ -176,7 +176,6 @@ object FeatureMaker {
         val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq("fake_msisdn"), "outer"))
         val repartitioned = joinedDF.repartition(144, col("fake_msisdn")).cache()
         repartitioned.count() // Trigger cache
-        repartitioned.filter(col("fake_msisdn") === "0CA5143503557C9879D14DE325D710A3").show()
 
         repartitioned.createOrReplaceTempView("finalDF_view")
         logger.info("Join complete")
@@ -229,8 +228,6 @@ object FeatureMaker {
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        finalDF.filter(col("fake_msisdn") === "0CA5143503557C9879D14DE325D710A3").show()
-        Thread.sleep(10000)
 
         // Step 4 — Final write
         val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
@@ -323,18 +320,18 @@ object FeatureMaker {
         logger.info(s"${name} task completed: Final output written to $outPath")
 
 
-//        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
-//        val aggregatedDataFrames: Seq[DataFrame] =
-//          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
-//
-//        println("The data frame was created successfully...")
-//
-//        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-//          df1.join(df2, Seq(bibID), "full_outer")
-//        }
-//
-//        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-//        println("Task finished successfully.")
+      //        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+      //        val aggregatedDataFrames: Seq[DataFrame] =
+      //          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+      //
+      //        println("The data frame was created successfully...")
+      //
+      //        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
+      //          df1.join(df2, Seq(bibID), "full_outer")
+      //        }
+      //
+      //        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
+      //        println("Task finished successfully.")
 
       case "CDR" =>
 
@@ -646,6 +643,47 @@ object FeatureMaker {
         finalDF.write.mode("overwrite").parquet(outPath)
         logger.info(s"${name} task completed: Final output written to $outPath")
 
+      case "Recharge" =>
+
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
+
+        // Step 1 — Aggregate for two months
+        val aggregatedDataFrames: Seq[DataFrame] =
+          aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
+
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
+
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq(bibID), "outer"))
+        val repartitioned = joinedDF.repartition(144, col(bibID)).cache()
+        repartitioned.count()  // trigger cache
+
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        // Step 3 — Fill missing values using defaults
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.recharge_features")
+        val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
+          .map(_.toString.split("=")(0).trim)
+          .map(k => k -> featureDefaultsConfig.getAnyRef(k))
+          .toMap
+
+        var finalDF = repartitioned
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+            finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
+          }
+        }
+
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
+
+        // Step 4 — Final write
+        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+        finalDF.write.mode("overwrite").parquet(outPath)
+        logger.info(s"${name} task completed: Final output written to $outPath")
 
       case _ =>
 
@@ -682,5 +720,4 @@ object FeatureMaker {
       }
   }
 }
-
 

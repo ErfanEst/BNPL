@@ -74,9 +74,9 @@ object DataReader {
           .withColumn(
             "days_delay_new",
             when(
-                col("days_delayed").isNull,
-                datediff(col("date"), col("installment_duedate"))
-              ).otherwise(col("days_delayed"))
+              col("days_delayed").isNull,
+              datediff(col("date"), col("installment_duedate"))
+            ).otherwise(col("days_delayed"))
           ).withColumn(
             "days_after_duedate",
             datediff(col("date"), col("installment_duedate"))
@@ -86,19 +86,19 @@ object DataReader {
 
         val result = grouped
           .withColumn("debt_status_1",
-          when(col("days_after_duedate") <= 31 && col("days_delay_new") > 0 && (col("days_delay_new") === col("days_delayed")), 4)
-            .when(col("days_after_duedate") <= 31 && col("days_delay_new") > 0 && col("days_delayed").isNull, 2)
-            .when(col("days_after_duedate") <= 31 && col("days_delay_new") <= 0 && (col("days_delay_new") === col("days_delayed")), 3)
-            .when(col("days_after_duedate") <= 31 && col("days_delay_new") <= 0 && col("days_delayed").isNull, 1)
-            .otherwise(-1)
-        ).withColumn(
-          "debt_status_2",
-          when((col("days_after_duedate") <= 62) && col("days_delay_new") > 0 && (col("days_delay_new") === col("days_delayed")), 4)
-            .when((col("days_after_duedate") <= 62) && col("days_delay_new") > 0 && col("days_delayed").isNull, 2)
-            .when((col("days_after_duedate") <= 62) && col("days_delay_new") <= 0 && (col("days_delay_new") === col("days_delayed")), 3)
-            .when((col("days_after_duedate") <= 62) && col("days_delay_new") <= 0 && col("days_delayed").isNull, 1)
-            .otherwise(-1)
-        ).withColumn(
+            when(col("days_after_duedate") <= 31 && col("days_delay_new") > 0 && (col("days_delay_new") === col("days_delayed")), 4)
+              .when(col("days_after_duedate") <= 31 && col("days_delay_new") > 0 && col("days_delayed").isNull, 2)
+              .when(col("days_after_duedate") <= 31 && col("days_delay_new") <= 0 && (col("days_delay_new") === col("days_delayed")), 3)
+              .when(col("days_after_duedate") <= 31 && col("days_delay_new") <= 0 && col("days_delayed").isNull, 1)
+              .otherwise(-1)
+          ).withColumn(
+            "debt_status_2",
+            when((col("days_after_duedate") <= 62) && col("days_delay_new") > 0 && (col("days_delay_new") === col("days_delayed")), 4)
+              .when((col("days_after_duedate") <= 62) && col("days_delay_new") > 0 && col("days_delayed").isNull, 2)
+              .when((col("days_after_duedate") <= 62) && col("days_delay_new") <= 0 && (col("days_delay_new") === col("days_delayed")), 3)
+              .when((col("days_after_duedate") <= 62) && col("days_delay_new") <= 0 && col("days_delayed").isNull, 1)
+              .otherwise(-1)
+          ).withColumn(
             "terrible_debt_status",
             when(col("days_after_duedate") >= 60 && col("days_delayed").isNull, 1)
               .when(col("days_after_duedate") >= 60 && (col("days_after_duedate") - col("days_delayed") <= 31), 2)
@@ -323,7 +323,7 @@ object DataReader {
           .filter(col("bib_id").isNotNull)
           .withColumn("date_l", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date_l")))
-//          .withColumn("dt_l", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
+          //          .withColumn("dt_l", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
           .withColumn("dt_sec_l", unix_timestamp(col("date_timestamp"), "yyyyMMdd HH:mm:ss").cast("timestamp"))
           .withColumn("loan_id", col("loan_id").cast("long"))
           .withColumn("loan_amount", col("loan_amount").cast("int"))
@@ -344,7 +344,7 @@ object DataReader {
           .filter(col("bib_id").isNotNull)
           .withColumn("date_r", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date_r")))
-//          .withColumn("dt_r", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
+          //          .withColumn("dt_r", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
           .withColumn("dt_sec_r", unix_timestamp(col("date_timestamp"), "yyyyMMdd HH:mm:ss").cast("timestamp"))
           .withColumn("loan_id", col("loan_id").cast("long"))
           .withColumn("loan_amount", col("loan_amount").cast("int"))
@@ -589,11 +589,8 @@ object DataReader {
           .dropDuplicates()
           .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
 
-        logger.info(s"${fileType} created — count: " + arpuFiltered.take(1).mkString("Array(", ", ", ")"))
-        logger.info(s"${fileType} lineage:\n" + arpuFiltered.rdd.toDebugString)
-
-        arpuFiltered.filter(col("fake_msisdn") === "0014562B0E42EF6C5C597FBF8CFB6F2D").show(false)
-        Thread.sleep(10000)
+        logger.info(s"$fileType created — count: " + arpuFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"$fileType lineage:\n" + arpuFiltered.rdd.toDebugString)
 
         arpuFiltered
     }
@@ -652,8 +649,8 @@ object DataReader {
 
         val vectorized = cvModel.transform(bankInfoFiltered)
 
-        logger.info(s"${fileType} created — count: " + vectorized.take(1).mkString("Array(", ", ", ")"))
-        logger.info(s"${fileType} lineage:\n" + vectorized.rdd.toDebugString)
+        logger.info(s"$fileType created — count: " + vectorized.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"$fileType lineage:\n" + vectorized.rdd.toDebugString)
 
         vectorized
     }
@@ -757,38 +754,7 @@ object DataReader {
         col("fake_ic_number"),
         col("gender").alias("gender").cast(IntegerType)
       )
-//    val arpuCustomer = arpuMsisdn
-//      .groupBy("fake_ic_number")
-//      .agg(
-//        // last("gender").alias("gender"), // Uncomment this line if needed, but `last` in Spark may require specific parameters.
-//        max("age").alias("age"),
-//        avg("res_com_score").alias("avg_res_com_score"),
-//        avg("voice_revenue").alias("avg_voice_revenue"),
-//        avg("gprs_revenue").alias("avg_gprs_revenue"),
-//        avg("sms_revenue").alias("avg_sms_revenue"),
-//        avg("subscription_revenue").alias("avg_subscription_revenue"),
-//        count("fake_msisdn").alias("count_active_fake_msisdn")
-//      )
-//
-//    val arpuCustomerJoint = arpuCustomer
-//      .join(siteTypeMode, Seq("fake_ic_number"), "left")
-//      .join(flagSimTierMode, Seq("fake_ic_number"), "left")
-//      .join(genderMode, Seq("fake_ic_number"), "left")
-//
-//    arpuCustomerJoint.filter(col("count_active_fake_msisdn") < 100)
-//
-//    averageAge = arpuCustomerJoint.select(avg("age")).first().getDouble(0)
-//    mostFrequentGender = 0
-//    mostFrequentFlagSimTier = arpuCustomerJoint
-//      .filter(col("flag_sim_tier_mode").isNotNull)
-//      .groupBy("flag_sim_tier_mode")
-//      .count()
-//      .orderBy(desc("count"))
-//      .first()
-//      .get(0)
-//
-//
-//    arpuCustomerJoint
+
   }
 
 }

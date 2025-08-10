@@ -19,6 +19,8 @@ class BankInfo(override val uid: String) extends AbstractAggregator {
     case "bank_active_days_count" => countDistinct("date_key")
     case "month_end_sms_ratio" => first(col("month_end_sms_count") / col("total_all_banks_sms_count_Extra"))
     case "bank_loyalty_ratio_first" => first(col("primary_bank_sms_count") / col("total_all_banks_sms_count_Extra"))
+    case "avg_daily_bank_sms_first" => sum("sms_cnt")/30
+    case "avg_daily_bank_sms_both" => sum("sms_cnt")/60
     case "bank_loyalty_ratio_both" => sum(
       when(
         col("primary_bank_both_months") === col("bank_name"),

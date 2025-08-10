@@ -17,7 +17,6 @@ object Aggregate {
     case "PackagePurchaseExtras" => PackagePurchaseExtras()
     case "HandsetPrice" => HandsetPrice()
     case "Arpu" => Arpu()
-    case "ArpuChanges" => ArpuChanges()
     case "BankInfo" => BankInfo()
     case "Recharge" => Recharge()
     case "LoanAssign" => LoanAssign()
@@ -77,7 +76,7 @@ object Aggregate {
 
     val source = getSource(name, featureTableMap, index, indices, maxRange, allNeededCols, bibID)
     val result = transformOutput(name, source, outputColumns, aggregator)
-//    source.unpersist(true)
+    //    source.unpersist(true)
 
     result
   }

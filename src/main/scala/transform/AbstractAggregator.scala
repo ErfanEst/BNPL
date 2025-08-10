@@ -245,8 +245,9 @@ abstract class AbstractAggregator extends AbstractTransformer{
     val result = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
 
-    result.filter(col("fake_msisdn") === "0CA5143503557C9879D14DE325D710A3").show(false)
-    Thread.sleep(10000)
+    result.filter(col("fake_msisdn") === "0000DFEFEDF9C832D684C5823E7101C6").show(false)
+    System.out.println("Press ENTER to continue...")
+    new java.util.Scanner(System.in).nextLine()
 
     val b = result
       .groupBy("fake_msisdn")
@@ -261,8 +262,9 @@ abstract class AbstractAggregator extends AbstractTransformer{
       }
     }
 
-    renamedDf.filter(col("fake_msisdn") === "0CA5143503557C9879D14DE325D710A3").show(false)
-    Thread.sleep(10000)
+    renamedDf.filter(col("fake_msisdn") === "0000DFEFEDF9C832D684C5823E7101C6").show(false)
+    System.out.println("Press ENTER to continue...")
+    new java.util.Scanner(System.in).nextLine()
 
     renamedDf
   }

@@ -23,7 +23,7 @@ class Arpu(override val uid: String) extends AbstractAggregator {
     case "sms_revenue_first"              => sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("sms_revenue")))
     case "subscription_revenue_first"     => sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("subscription_revenue")))
 
-    case "res_com_score_second"           => sum(when(col("dense_rank") === 2, col("res_com_score")).otherwise(0))
+    case "res_com_score_second"           => last(col("res_com_score_2")) + last(col("res_com_score_1"))
     case "voice_revenue_second"           => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("voice_revenue")).otherwise(0))
     case "gprs_revenue_second"            => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("gprs_revenue")).otherwise(0))
     case "sms_revenue_second"             => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("sms_revenue")).otherwise(0))
@@ -58,17 +58,18 @@ class Arpu(override val uid: String) extends AbstractAggregator {
   def listProducedBeforeTransform: Seq[(String, Column)] = {
 
     val w = Window.partitionBy("fake_msisdn").orderBy(month_index)
+//    val w1 = Window.partitionBy("fake_msisdn")
 
     Seq(
 
       "cnt_contract_type" -> size(array_distinct(collect_list(col("contract_type")).over(w))),
 
-      "res_com_score_1" -> last(when((col("dense_rank") === 2 && col("count_dense_rank")  > 1) || (col("dense_rank") === 1 && col("count_dense_rank") === 1), col("res_com_score")), ignoreNulls = true).over(w),
+      "res_com_score_1" -> last(when((col("dense_rank") === 2 && col("count_dense_rank")  > 1) || (col("dense_rank") === 1 && col("count_dense_rank") === 1), col("res_com_score")).otherwise(0), ignoreNulls = true).over(w),
       "sms_revenue_1" -> sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("sms_revenue"))).over(w),
       "gprs_revenue_1" -> sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("gprs_revenue"))).over(w),
       "voice_revenue_1" -> sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("voice_revenue"))).over(w),
 
-      "res_com_score_2" -> last(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("res_com_score")), ignoreNulls = true).over(w),
+      "res_com_score_2" -> last(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("res_com_score")).otherwise(0), ignoreNulls = true).over(w),
       "sms_revenue_2" -> sum(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("sms_revenue")).otherwise(0)).over(w),
       "gprs_revenue_2" -> sum(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("gprs_revenue")).otherwise(0)).over(w),
       "voice_revenue_2" -> sum(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("voice_revenue")).otherwise(0)).over(w),
