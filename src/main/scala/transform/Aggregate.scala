@@ -1,6 +1,6 @@
 package transform
 
-import core.Core.featureTableMap
+import core.Core.{featureTableMap, logger}
 import extract.DataReader.{selectCols, selectReader, setTimeRange}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql.DataFrame
@@ -16,11 +16,8 @@ object Aggregate {
     case "PackagePurchase" => PackagePurchase()
     case "PackagePurchaseExtras" => PackagePurchaseExtras()
     case "HandsetPrice" => HandsetPrice()
-    case "HandsetPriceBrands" => HandsetPriceBrands()
     case "Arpu" => Arpu()
-    case "ArpuChanges" => ArpuChanges()
     case "BankInfo" => BankInfo()
-    case "BankInfoGroupBy" => BankInfoGroupBy()
     case "Recharge" => Recharge()
     case "LoanAssign" => LoanAssign()
     case "LoanRec" => LoanRec()
@@ -38,10 +35,10 @@ object Aggregate {
 
     val maxRange: Int = outputColumns.keys.max
 
-    println("maxRange is: " + maxRange)
+    logger.info("maxRange is: " + maxRange)
 
     val allOutputCols: Array[String] = outputColumns.values.flatten.toArray.distinct
-    println("allOutputCols is: " + allOutputCols.mkString("Array(", ", ", ")"))
+    logger.info("allOutputCols is: " + allOutputCols.mkString("Array(", ", ", ")"))
 
 
     val aggregator: AbstractAggregator = selectAggregator(name)
@@ -52,11 +49,11 @@ object Aggregate {
       .setOutputColumns(allOutputCols)
       .getInputColumns
 
-    println("allNeededCols are: ")
-    allNeededCols.foreach(x => println(x))
+    logger.info("allNeededCols are: ")
+    allNeededCols.foreach(x => logger.info(x))
 
     def getSource(name: String, featureTableMap: Map[String, List[String]], index: Int, indices: Seq[Int], maxRange: Int, allNeededCols: Seq[String], bibID: String): DataFrame = {
-      val commonCols = allNeededCols ++ Seq(if (name == "DomesticTravel" || name == "PackagePurchaseExtras" || name == "PackagePurchase" || name == "HandsetPrice"|| name == "HandsetPriceBrands" || name == "Arpu" || name == "ArpuChanges" || name == "BankInfo" || name == "BankInfoGroupBy" || name == "PostPaid" || name == "CreditManagement") "fake_msisdn" else bibID)
+      val commonCols = allNeededCols ++ Seq(if (name == "DomesticTravel" || name == "PackagePurchaseExtras" || name == "PackagePurchase" || name == "HandsetPrice"|| name == "HandsetPriceBrands" || name == "Arpu" || name == "ArpuChanges" || name == "BankInfo" || name == "PostPaid" || name == "CreditManagement") "fake_msisdn" else bibID)
       val reader = selectReader(name, featureTableMap)
       selectCols(setTimeRange(reader)(indices, maxRange))(commonCols.distinct)
     }
@@ -79,6 +76,9 @@ object Aggregate {
 
     val source = getSource(name, featureTableMap, index, indices, maxRange, allNeededCols, bibID)
     val result = transformOutput(name, source, outputColumns, aggregator)
+    //    source.unpersist(true)
+
     result
   }
+
 }
