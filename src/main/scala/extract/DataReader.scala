@@ -476,7 +476,7 @@ object DataReader {
           "call_duration", "gprs_usage", "voice_session_cost", "date_key"
         )
 
-        val cdr = spark.read.parquet(cdrPaths: _*)
+        val cdr = spark.read.parquet("/home/erfan/Features/CDR/cdr_16845_16846")
           .filter(col(bibID).isNotNull)
           .select(neededCols.map(col): _*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
