@@ -101,7 +101,7 @@ object FeatureMaker {
         logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
 
         // Step 3 — Fill missing values using defaults
-        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.bank_info")
+        val featureDefaultsConfig = appConfig.getConfig("featureDefaults.bank_info_features")
         val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
           .map(_.toString.split("=")(0).trim)
           .map(k => k -> featureDefaultsConfig.getAnyRef(k))

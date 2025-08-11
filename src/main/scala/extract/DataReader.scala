@@ -633,7 +633,7 @@ object DataReader {
           }
         }
 
-        val bankInfo = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_PERSON_TYPE_AND_BANK_INFO")
+        val bankInfo = spark.read.parquet(bankinfoPaths: _*)
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -641,7 +641,7 @@ object DataReader {
           .filter(size(col("matched_banks")) > lit(0))
         val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
 
-        val changeOwnerships = spark.read.parquet("/home/yazdan/bnpl-etl/sample/drop_list_16847_16848")
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
           .dropDuplicates("bib_id", "nid_hash")
           .select("bib_id")
           .distinct()

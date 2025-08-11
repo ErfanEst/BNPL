@@ -453,12 +453,12 @@ object TableCreation {
         bank_loyalty_ratio_first_1 Float64,
         total_bank_count_1 Int64,
         month_end_sms_ratio_1 Float64,
-        avg_daily_bank_sms_1 Float64,
+        avg_daily_bank_sms_first_1 Float64,
         bank_active_days_count_2 Int64,
         total_bank_count_2 Int64,
         bank_loyalty_ratio_both_2 Float64,
         month_end_sms_ratio_2 Float64,
-        avg_daily_bank_sms_2 Float64
+        avg_daily_bank_sms_both_2 Float64
 
       )
       ENGINE = MergeTree()

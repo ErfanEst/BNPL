@@ -140,8 +140,6 @@ aggregation:
       gprs_revenue_change: [2]
       voice_revenue_change: [2]
 
-  -
-
   - name: HandsetPrice
     tables: ["handset_price"]
     features:
@@ -164,35 +162,30 @@ aggregation:
       apple_usage_ratio: [1, 2]
       huawei_usage_ratio: [1, 2]
 
-  #  - name: BankInfo
-  #    tables: ['customer_person_type_bank_info']
-  #    features:
-  #      total_bank_count: [1, 2]
-
   - name: BankInfo
-   tables: [ 'customer_person_type_bank_info' ]
-   features:
-   total_bank_count: [ 1, 2 ]
-   bank_active_days_count: [ 1, 2 ]
-   month_end_sms_ratio: [ 1, 2 ]
-   bank_loyalty_ratio_first: [ 1 ]
-   bank_loyalty_ratio_both: [ 2 ]
-   #      temp: [1, 2]
-   avg_daily_bank_sms_first: [ 1 ]
-   avg_daily_bank_sms_both: [ 2 ]
-   #      isMellat: [1, 2]
-   #      isTejarat: [1, 2]
-   #      isKeshavarzi: [1, 2]
-   #      isRefah: [1, 2]
-   #      isMelli: [1, 2]
-   #      isPasargad: [1, 2]
-   #      isMaskan: [1, 2]
-   #      isResalat: [1, 2]
-   #      isAyandeh: [1, 2]
-   #      isParsian: [1, 2]
-   #      isEnbank: [1, 2]
-   #      isSina: [1, 2]
-   #      isIz: [1, 2]
+    tables: ['customer_person_type_bank_info']
+    features:
+      total_bank_count: [1, 2]
+      bank_active_days_count: [1, 2]
+      month_end_sms_ratio: [1, 2]
+      bank_loyalty_ratio_first: [1]
+      bank_loyalty_ratio_both: [2]
+      #      temp: [1, 2]
+      avg_daily_bank_sms_first: [1]
+      avg_daily_bank_sms_both: [2]
+  #      isMellat: [1, 2]
+  #      isTejarat: [1, 2]
+  #      isKeshavarzi: [1, 2]
+  #      isRefah: [1, 2]
+  #      isMelli: [1, 2]
+  #      isPasargad: [1, 2]
+  #      isMaskan: [1, 2]
+  #      isResalat: [1, 2]
+  #      isAyandeh: [1, 2]
+  #      isParsian: [1, 2]
+  #      isEnbank: [1, 2]
+  #      isSina: [1, 2]
+  #      isIz: [1, 2]
 
   - name: Recharge
     tables: ['recharge']
