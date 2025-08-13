@@ -38,7 +38,7 @@ class Arpu(override val uid: String) extends AbstractAggregator {
     case "site__large_city"        => first("site__large_city")
 
     case "site__Airport"        => first(when(col("site_type") === "Airport", 1).otherwise(0))
-    case "site__Industrial Area" => first(when(col("site_type") === "Industrial Area", 1).otherwise(0))
+    case "site__Industrial Area" => last(when(col("site_type") === "Industrial Area", 1).otherwise(0))
     case "site__Island"         => first(when(col("site_type") === "Island", 1).otherwise(0))
     case "site__Oil Platform"   => first(when(col("site_type") === "Oil Platform", 1).otherwise(0))
     case "site__Port"           => first(when(col("site_type") === "Port", 1).otherwise(0))

@@ -177,6 +177,10 @@ object FeatureMaker {
         val repartitioned = joinedDF.repartition(144, col("fake_msisdn")).cache()
         repartitioned.count() // Trigger cache
 
+        repartitioned.filter(col("fake_msisdn") === "009A9D417ADEB8C267D0048E345D74FA").show()
+        System.out.println("Press ENTER to continue...")
+        new java.util.Scanner(System.in).nextLine()
+
         repartitioned.createOrReplaceTempView("finalDF_view")
         logger.info("Join complete")
         logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
@@ -197,7 +201,8 @@ object FeatureMaker {
         // Apply default values to DataFrame
         var finalDF = repartitioned
 
-        featureDefaults.foreach { case (colName, defaultVal) =>
+        featureDefaults.foreach {
+          case (colName, defaultVal) =>
           if (finalDF.columns.contains(colName)) {
             val valueToFill: Option[Any] = defaultVal match {
               case query: String if query.trim.toLowerCase.startsWith("select") =>
@@ -206,6 +211,7 @@ object FeatureMaker {
                   val queryResult = spark.sql(query)
                   val value = queryResult.first().get(0)
                   logger.info(s"Query result for '$colName' = $value")
+                  Thread.sleep(10000)
                   Some(value)
                 } catch {
                   case e: Exception =>
@@ -214,6 +220,8 @@ object FeatureMaker {
                 }
               case _ =>
                 logger.info(s"Filling nulls in '$colName' with static default: $defaultVal")
+                System.out.println("next...")
+                new java.util.Scanner(System.in).nextLine()
                 Some(defaultVal)
             }
 
