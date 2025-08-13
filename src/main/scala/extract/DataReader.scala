@@ -580,20 +580,40 @@ object DataReader {
         val w = Window.partitionBy("fake_msisdn").orderBy(month_index)
         val wCount = Window.partitionBy("fake_msisdn")
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-        val arpu = spark.read.parquet(appConfig.getString("Path.Arpu"))
+
+        val neededCols = Seq("fake_msisdn", "contract_type", "registration_date", "gender", "age", "modem_model", "flag_sim_tier", "site_type", "res_com_score", "voice_revenue", "gprs_revenue", "sms_revenue", "subscription_revenue", "date_key")
+
+        val basePath = appConfig.getString("Path.Arpu")
+        val previousMonth = index - 1
+        val arpuPaths = Seq(
+          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_ARPU",
+          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_ARPU"
+        )
+
+        val arpu = spark.read.parquet(arpuPaths: _*)
+          .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
-          .drop("month_id")
           .drop("date_key")
-          .dropDuplicates()
           .na.fill(0)
           .withColumn("dense_rank", dense_rank().over(w))
           .withColumn("count_dense_rank", size(collect_set("dense_rank").over(wCount)))
 
-        arpu.filter(col("fake_msisdn") === "0CA5143503557C9879D14DE325D710A3").show(false)
-        Thread.sleep(3000)
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
+          .dropDuplicates(bibID, nidHash)
+          .select(bibID)
 
-        arpu
+        // Broadcast anti-join to avoid shuffle
+        val arpuFiltered = arpu
+          .join(broadcast(changeOwnerships), arpu("fake_msisdn") === changeOwnerships(bibID), "left_anti")
+          .dropDuplicates()
+          .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
+
+        logger.info(s"$fileType created — count: " + arpuFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"$fileType lineage:\n" + arpuFiltered.rdd.toDebugString)
+
+        arpuFiltered
     }
   }
 
@@ -712,87 +732,6 @@ object DataReader {
       .where(col(month_index) > indices.min - range).where(col(month_index) <= indices.max)
   }
 
-  private def calculateCustomerLevelMetrics(arpuMsisdn: DataFrame): Unit = {
 
-    // Step 1: Calculate aggregations
-    val dfCount = arpuMsisdn.groupBy("fake_ic_number", "site_type").count()
-
-    // Step 2: Pivot the DataFrame, creating one column for each `site_type`
-    val dfPivot = dfCount.groupBy("fake_ic_number")
-      .pivot("site_type")
-      .sum("count")
-      .na.fill(0)
-
-    dfPivot.printSchema()
-
-    // Step 3: Rename columns to reflect the site_type (optional but recommended)
-    val distinctSiteTypes = arpuMsisdn.select("site_type")
-      .distinct()
-      .rdd
-      .map(row => row.getString(0))
-      .filter(_ != null)
-      .collect()
-
-    siteTypeMode = dfPivot.select(
-      col("fake_ic_number") +:
-        distinctSiteTypes.map(siteType => col(s"`$siteType`").alias(s"site_type_$siteType")): _*
-    )
-
-    flagSimTierMode = arpuMsisdn
-      .filter(col("flag_sim_tier").isNotNull)
-      .groupBy("fake_ic_number", "flag_sim_tier")
-      .count()
-      .withColumn("rank", row_number().over(Window.partitionBy("fake_ic_number").orderBy(desc("count"))))
-      .filter(col("rank") === 1)
-      .select(
-        col("fake_ic_number"),
-        col("flag_sim_tier").alias("flag_sim_tier_mode").cast(IntegerType)
-      )
-
-    flagSimTierMode.printSchema()
-
-    genderMode = arpuMsisdn
-      .filter(col("gender").isNotNull)
-      .groupBy("fake_ic_number", "gender")
-      .count()
-      .withColumn("rank", row_number().over(Window.partitionBy("fake_ic_number").orderBy(desc("count"))))
-      .filter(col("rank") === 1)
-      .select(
-        col("fake_ic_number"),
-        col("gender").alias("gender").cast(IntegerType)
-      )
-    //    val arpuCustomer = arpuMsisdn
-    //      .groupBy("fake_ic_number")
-    //      .agg(
-    //        // last("gender").alias("gender"), // Uncomment this line if needed, but `last` in Spark may require specific parameters.
-    //        max("age").alias("age"),
-    //        avg("res_com_score").alias("avg_res_com_score"),
-    //        avg("voice_revenue").alias("avg_voice_revenue"),
-    //        avg("gprs_revenue").alias("avg_gprs_revenue"),
-    //        avg("sms_revenue").alias("avg_sms_revenue"),
-    //        avg("subscription_revenue").alias("avg_subscription_revenue"),
-    //        count("fake_msisdn").alias("count_active_fake_msisdn")
-    //      )
-    //
-    //    val arpuCustomerJoint = arpuCustomer
-    //      .join(siteTypeMode, Seq("fake_ic_number"), "left")
-    //      .join(flagSimTierMode, Seq("fake_ic_number"), "left")
-    //      .join(genderMode, Seq("fake_ic_number"), "left")
-    //
-    //    arpuCustomerJoint.filter(col("count_active_fake_msisdn") < 100)
-    //
-    //    averageAge = arpuCustomerJoint.select(avg("age")).first().getDouble(0)
-    //    mostFrequentGender = 0
-    //    mostFrequentFlagSimTier = arpuCustomerJoint
-    //      .filter(col("flag_sim_tier_mode").isNotNull)
-    //      .groupBy("flag_sim_tier_mode")
-    //      .count()
-    //      .orderBy(desc("count"))
-    //      .first()
-    //      .get(0)
-    //
-    //
-    //    arpuCustomerJoint
-  }
 
 }

@@ -3,7 +3,7 @@ package utils
 import com.typesafe.config.ConfigFactory
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
-import core.Core.appConfig
+import core.Core.{appConfig, logger, spark}
 
 object ClickHouseLoader {
 
@@ -39,7 +39,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("CDR features written to ClickHouse successfully.")
+    logger.info("CDR features written to ClickHouse successfully.")
   }
 
   def loadRechargeData(rechargeDF: DataFrame): Unit = {
@@ -75,7 +75,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("Recharge features written to ClickHouse successfully.")
+    logger.info("Recharge features written to ClickHouse successfully.")
   }
 
   def loadCreditManagementData(aggregatedDF: DataFrame): Unit = {
@@ -109,7 +109,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("Credit Management features written to ClickHouse successfully.")
+    logger.info("Credit Management features written to ClickHouse successfully.")
   }
   def loadUserInfoData(aggregatedDF: DataFrame): Unit = {
     // Ensure table exists
@@ -142,7 +142,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("UserInfo features written to ClickHouse successfully.")
+    logger.info("UserInfo features written to ClickHouse successfully.")
   }
 
   def loadDomesticTravelData(aggregatedDF: DataFrame): Unit = {
@@ -176,7 +176,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("Domestic Travel features written to ClickHouse successfully.")
+    logger.info("Domestic Travel features written to ClickHouse successfully.")
   }
 
   def loadLoanRecData(aggregatedDF: DataFrame): Unit = {
@@ -210,7 +210,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("LoanRec features written to ClickHouse successfully.")
+    logger.info("LoanRec features written to ClickHouse successfully.")
   }
 
 
@@ -245,7 +245,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("LoanAssign features written to ClickHouse successfully.")
+    logger.info("LoanAssign features written to ClickHouse successfully.")
   }
 
   def loadPackagePurchaseExtrasData(aggregatedDF: DataFrame): Unit = {
@@ -279,7 +279,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("PackagePurchaseExtras features written to ClickHouse successfully.")
+    logger.info("PackagePurchaseExtras features written to ClickHouse successfully.")
   }
 
   def loadPackagePurchaseData(df: DataFrame): Unit = {
@@ -313,7 +313,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("PackagePurchase features written to ClickHouse successfully.")
+    logger.info("PackagePurchase features written to ClickHouse successfully.")
   }
 
 
@@ -350,7 +350,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("PostPaid features written to ClickHouse successfully.")
+    logger.info("PostPaid features written to ClickHouse successfully.")
   }
 
   def loadBankInfoFeaturesData(df: DataFrame): Unit = {
@@ -384,7 +384,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("BankInfo features written to ClickHouse successfully.")
+    logger.info("BankInfo features written to ClickHouse successfully.")
   }
 
   def loadHandsetPriceFeaturesData(df: DataFrame): Unit = {
@@ -418,7 +418,7 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("HandsetPrice features written to ClickHouse successfully.")
+    logger.info("HandsetPrice features written to ClickHouse successfully.")
   }
 
 
@@ -456,8 +456,56 @@ object ClickHouseLoader {
       .mode(SaveMode.Append)
       .save()
 
-    println("Package features written to ClickHouse successfully.")
+    logger.info("Package features written to ClickHouse successfully.")
   }
+
+  def loadArpuFeaturesData(df: DataFrame): Unit = {
+    // Ensure table exists first
+    TableCreation.createArpuFeaturesTable()
+
+    // Register DF as temp view for SQL defaults like AVG(age_1)
+    df.createOrReplaceTempView("finalDF_view")
+
+    // Load defaults from config
+    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.arpu")
+    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
+
+    var finalDF = df
+
+    featureKeys.foreach { rawKey =>
+      val key = rawKey.stripPrefix(""").stripSuffix(""") // remove quotes
+      val configValue = featureDefaultsConfig.getString(rawKey)
+
+      val replacementCol =
+        if (configValue.trim.toUpperCase.startsWith("SELECT")) {
+          // Execute SQL default
+          val computedVal = spark.sql(configValue).first().get(0)
+          lit(computedVal)
+        } else {
+          // Static numeric default
+          if (configValue.contains(".")) lit(configValue.toDouble)
+          else lit(configValue.toInt)
+        }
+
+      if (finalDF.columns.contains(key)) {
+        finalDF = finalDF.withColumn(key, coalesce(col(key), replacementCol))
+      }
+    }
+
+    // Write to ClickHouse
+    finalDF.write
+      .format("jdbc")
+      .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
+      .option("url", appConfig.getString("clickhouse.url"))
+      .option("user", appConfig.getString("clickhouse.user"))
+      .option("password", appConfig.getString("clickhouse.password"))
+      .option("dbtable", "arpu_features")
+      .mode(SaveMode.Append)
+      .save()
+
+    logger.info("ARPU features written to ClickHouse successfully.")
+  }
+
 
 
 

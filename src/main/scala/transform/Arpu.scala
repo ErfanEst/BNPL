@@ -23,7 +23,7 @@ class Arpu(override val uid: String) extends AbstractAggregator {
     case "sms_revenue_first"              => sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("sms_revenue")))
     case "subscription_revenue_first"     => sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("subscription_revenue")))
 
-    case "res_com_score_second"           => sum(when(col("dense_rank") === 2, col("res_com_score")).otherwise(0))
+    case "res_com_score_second"           => last(col("res_com_score_2")) + last(col("res_com_score_1"))
     case "voice_revenue_second"           => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("voice_revenue")).otherwise(0))
     case "gprs_revenue_second"            => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("gprs_revenue")).otherwise(0))
     case "sms_revenue_second"             => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("sms_revenue")).otherwise(0))
@@ -37,19 +37,19 @@ class Arpu(override val uid: String) extends AbstractAggregator {
     case "site__road_village"      => first("site__road_village")
     case "site__large_city"        => first("site__large_city")
 
-    case "site__Airport"        => coalesce(first(when(col("site_type") === "Airport", 1).otherwise(0)), lit(0))
-    case "site__Industrial Area" => coalesce(first(when(col("site_type") === "Industrial Area", 1).otherwise(0)), lit(0))
-    case "site__Island"         => coalesce(first(when(col("site_type") === "Island", 1).otherwise(0)), lit(0))
-    case "site__Oil Platform"   => coalesce(first(when(col("site_type") === "Oil Platform", 1).otherwise(0)), lit(0))
-    case "site__Port"           => coalesce(first(when(col("site_type") === "Port", 1).otherwise(0)), lit(0))
-    case "site__Touristic Area" => coalesce(first(when(col("site_type") === "Touristic Area", 1).otherwise(0)), lit(0))
-    case "site__USO"            => coalesce(first(when(col("site_type") === "USO", 1).otherwise(0)), lit(0))
-    case "site__University"     => coalesce(first(when(col("site_type") === "University", 1).otherwise(0)), lit(0))
+    case "site__Airport"        => first(when(col("site_type") === "Airport", 1).otherwise(0))
+    case "site__Industrial Area" => last(when(col("site_type") === "Industrial Area", 1).otherwise(0))
+    case "site__Island"         => first(when(col("site_type") === "Island", 1).otherwise(0))
+    case "site__Oil Platform"   => first(when(col("site_type") === "Oil Platform", 1).otherwise(0))
+    case "site__Port"           => first(when(col("site_type") === "Port", 1).otherwise(0))
+    case "site__Touristic Area" => first(when(col("site_type") === "Touristic Area", 1).otherwise(0))
+    case "site__USO"            => first(when(col("site_type") === "USO", 1).otherwise(0))
+    case "site__University"     => first(when(col("site_type") === "University", 1).otherwise(0))
 
-    case "res_com_score_change"    => coalesce(first(col("res_com_score_1")/col("res_com_score_2") - 1.0), lit(0.0))
-    case "sms_revenue_change"      => coalesce(first(col("sms_revenue_1")/col("sms_revenue_2") - 1.0), lit(0.0))
-    case "gprs_revenue_change"     => coalesce(first(col("gprs_revenue_1")/col("gprs_revenue_2") - 1.0), lit(0.0))
-    case "voice_revenue_change"    => coalesce(first(col("voice_revenue_1")/col("voice_revenue_2") - 1.0), lit(0.0))
+    case "res_com_score_change"    => first(col("res_com_score_1")/col("res_com_score_2") - 1.0)
+    case "sms_revenue_change"      => first(col("sms_revenue_1")/col("sms_revenue_2") - 1.0)
+    case "gprs_revenue_change"     => first(col("gprs_revenue_1")/col("gprs_revenue_2") - 1.0)
+    case "voice_revenue_change"    => first(col("voice_revenue_1")/col("voice_revenue_2") - 1.0)
 
   }
 
@@ -58,29 +58,30 @@ class Arpu(override val uid: String) extends AbstractAggregator {
   def listProducedBeforeTransform: Seq[(String, Column)] = {
 
     val w = Window.partitionBy("fake_msisdn").orderBy(month_index)
+    //    val w1 = Window.partitionBy("fake_msisdn")
 
     Seq(
 
       "cnt_contract_type" -> size(array_distinct(collect_list(col("contract_type")).over(w))),
 
-      "res_com_score_1" -> last(when((col("dense_rank") === 2 && col("count_dense_rank")  > 1) || (col("dense_rank") === 1 && col("count_dense_rank") === 1), col("res_com_score")), ignoreNulls = true).over(w),
+      "res_com_score_1" -> last(when((col("dense_rank") === 2 && col("count_dense_rank")  > 1) || (col("dense_rank") === 1 && col("count_dense_rank") === 1), col("res_com_score")).otherwise(0), ignoreNulls = true).over(w),
       "sms_revenue_1" -> sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("sms_revenue"))).over(w),
       "gprs_revenue_1" -> sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("gprs_revenue"))).over(w),
       "voice_revenue_1" -> sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("voice_revenue"))).over(w),
 
-      "res_com_score_2" -> last(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("res_com_score")), ignoreNulls = true).over(w),
+      "res_com_score_2" -> last(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("res_com_score")).otherwise(0), ignoreNulls = true).over(w),
       "sms_revenue_2" -> sum(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("sms_revenue")).otherwise(0)).over(w),
       "gprs_revenue_2" -> sum(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("gprs_revenue")).otherwise(0)).over(w),
       "voice_revenue_2" -> sum(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("voice_revenue")).otherwise(0)).over(w),
 
-      "r1" -> first("res_com_score_1", true).over(w),
-      "r2" -> first("res_com_score_2", true).over(w),
-      "v1" -> first("voice_revenue_1", true).over(w),
-      "v2" -> first("voice_revenue_2", true).over(w),
-      "g1" -> first("gprs_revenue_1", true).over(w),
-      "g2" -> first("gprs_revenue_2", true).over(w),
-      "s1" -> first("sms_revenue_1", true).over(w),
-      "s2" -> first("sms_revenue_2", true).over(w),
+      //      "r1" -> first("res_com_score_1", true).over(w),
+      //      "r2" -> first("res_com_score_2", true).over(w),
+      //      "v1" -> first("voice_revenue_1", true).over(w),
+      //      "v2" -> first("voice_revenue_2", true).over(w),
+      //      "g1" -> first("gprs_revenue_1", true).over(w),
+      //      "g2" -> first("gprs_revenue_2", true).over(w),
+      //      "s1" -> first("sms_revenue_1", true).over(w),
+      //      "s2" -> first("sms_revenue_2", true).over(w),
 
       "site__road_village" -> when(last("site_type").over(w).isin(road_village.toSeq: _*), 1).otherwise(0),
       "site__large_city" -> when(last("site_type").over(w).isin(large_city.toSeq: _*), 1).otherwise(0)

@@ -247,8 +247,9 @@ abstract class AbstractAggregator extends AbstractTransformer{
     val result = listProducedGrouped.getOrElse(true, Map())
       .foldLeft(explodeForIndices(nonMonthIndexDependentDf))((df, x) => df.withColumn(x._1, x._2))
 
-    result.filter(col("fake_msisdn") === "0DA44CED95D0416B5594951C27FD1370").show(false)
-    Thread.sleep(5000)
+    result.filter(col("fake_msisdn") === "0000DFEFEDF9C832D684C5823E7101C6").show(false)
+    System.out.println("Press ENTER to continue...")
+    new java.util.Scanner(System.in).nextLine()
 
     val b = result
       .groupBy("fake_msisdn")
@@ -256,15 +257,16 @@ abstract class AbstractAggregator extends AbstractTransformer{
       .agg(first(month_index) as "D_U_M_M_Y", finalOutputColumns: _*)
       .drop($(_indices).map(IndexedColumn(_, "D_U_M_M_Y")): _*)
 
-    b.filter(col("fake_msisdn") === "0CA5143503557C9879D14DE325D710A3").show(false)
-    Thread.sleep(5000)
-
     val renamedDf = b.columns.foldLeft(b) { (df, colName) =>
       IndexedColumn.unapply(colName) match {
         case Some((_, name)) => df.withColumnRenamed(colName, name)
         case None            => df
       }
     }
+
+    renamedDf.filter(col("fake_msisdn") === "0000DFEFEDF9C832D684C5823E7101C6").show(false)
+    System.out.println("Press ENTER to continue...")
+    new java.util.Scanner(System.in).nextLine()
 
     renamedDf
   }

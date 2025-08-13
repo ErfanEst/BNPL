@@ -1,13 +1,26 @@
 package task
 
 import core.Core.{Conf, aggregationColsYaml, appConfig, logger, spark}
-import org.apache.spark.sql.DataFrame
-import org.rogach.scallop.{ScallopConf, ScallopOption}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import transform.Aggregate.aggregate
 import org.apache.spark.sql.functions._
 import utils.Utils.CommonColumns.{bibID, month_index, nidHash}
 import utils.Utils.monthIndexOf
 import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.spark.sql.DataFrame
+import org.rogach.scallop.{ScallopConf, ScallopOption}
+
+import scala.jdk.CollectionConverters.asScalaSetConverter
+
+
+
+
+
+
+
+
+
+
 
 
 object FeatureMaker {
@@ -193,18 +206,79 @@ object FeatureMaker {
 
       case "Arpu" =>
 
-        val outputColumns = reverseMapOfList(aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap)
+        val outputColumns = reverseMapOfList(
+          aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
+        )
+
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        println("The data frame was created successfully...")
+        logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
 
-        val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
-          df1.join(df2, Seq("fake_msisdn"), "full_outer")
+        // Step 2 — Join in-memory
+        val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq("fake_msisdn"), "outer"))
+        val repartitioned = joinedDF.repartition(144, col("fake_msisdn")).cache()
+        repartitioned.count() // Trigger cache
+
+        repartitioned.createOrReplaceTempView("finalDF_view")
+        logger.info("Join complete")
+        logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
+
+        // Step 3 — Fill nulls with defaults from config
+        val featureDefaultsConfig = appConfig.getConfig(s"featureDefaults.${name.toLowerCase}")
+
+        // ✅ Proper way to extract key-value pairs from Typesafe Config
+        val featureDefaults: Map[String, AnyRef] = featureDefaultsConfig.root().entrySet().asScala.map { entry =>
+          val key = entry.getKey
+          val value = entry.getValue.unwrapped() // extract raw value (String, Int, etc.)
+          key -> value
+        }.toMap
+
+        // Log extracted keys
+        logger.info(s"Extracted default keys from config: ${featureDefaults.keys.mkString(", ")}")
+
+        // Apply default values to DataFrame
+        var finalDF = repartitioned
+
+        featureDefaults.foreach { case (colName, defaultVal) =>
+          if (finalDF.columns.contains(colName)) {
+            val valueToFill: Option[Any] = defaultVal match {
+              case query: String if query.trim.toLowerCase.startsWith("select") =>
+                try {
+                  logger.info(s"Running query to fill '$colName': $query")
+                  val queryResult = spark.sql(query)
+                  val value = queryResult.first().get(0)
+                  logger.info(s"Query result for '$colName' = $value")
+                  Some(value)
+                } catch {
+                  case e: Exception =>
+                    logger.warn(s"Failed to run query for column '$colName': $query", e)
+                    None
+                }
+              case _ =>
+                logger.info(s"Filling nulls in '$colName' with static default: $defaultVal")
+                Some(defaultVal)
+            }
+
+            valueToFill.foreach { v =>
+              finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(v)))
+            }
+          } else {
+            logger.warn(s"Column '$colName' not found in DataFrame; skipping default fill")
+          }
         }
 
-        combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully.")
+        logger.info("Default value filling complete")
+        logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
+
+
+        // Step 4 — Final write
+//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
+//        finalDF.write.mode("overwrite").parquet(outPath)
+//        logger.info(s"${name} task completed: Final output written to $outPath")
+
+        utils.ClickHouseLoader.loadArpuFeaturesData(finalDF)
+        logger.info("Arpu data loaded to ClickHouse with config defaults")
 
 
 
@@ -673,7 +747,7 @@ object FeatureMaker {
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        println("The data frame was created successfully...")
+        logger.info("The data frame was created successfully...")
 
         val combinedDataFrame = aggregatedDataFrames.reduce { (df1, df2) =>
 
@@ -681,13 +755,13 @@ object FeatureMaker {
         }
 
         combinedDataFrame.write.mode("overwrite").parquet(appConfig.getString("outputPath") + s"/${name}_features_${index}_index/")
-        println("Task finished successfully.")
+        logger.info("Task finished successfully.")
     }
 
     val durationMillis = System.currentTimeMillis() - startTime
     val durationSec = durationMillis / 1000.0
 
-    println(s"The code duration is: $durationSec seconds.")
+    logger.info(s"The code duration is: $durationSec seconds.")
 
     try {
 //      metrics.MetricsPusher.push(durationSec, succeeded = true)
