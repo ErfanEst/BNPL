@@ -16,13 +16,6 @@ import scala.jdk.CollectionConverters.asScalaSetConverter
 
 
 
-
-
-
-
-
-
-
 object FeatureMaker {
 
   var index: Int = _
@@ -84,12 +77,9 @@ object FeatureMaker {
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"${name} task completed: Final output written to $outPath")
 
-        utils.ClickHouseLoader.loadHandsetPriceFeaturesData(finalDF)
+
+        utils.ClickHouseLoader.loadHandsetPriceFeaturesData(finalDF, index)
         logger.info("PackagePurchase data loaded to ClickHouse with config defaults")
 
 
@@ -130,12 +120,9 @@ object FeatureMaker {
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"${name} task completed: Final output written to $outPath")
 
-        utils.ClickHouseLoader.loadBankInfoFeaturesData(finalDF)
+
+        utils.ClickHouseLoader.loadBankInfoFeaturesData(finalDF, index)
         logger.info("BankInfo data loaded to ClickHouse with config defaults")
 
 
@@ -194,10 +181,10 @@ object FeatureMaker {
         // Step 4 — Final write to ClickHouse
         name match {
           case "PackagePurchase" =>
-            utils.ClickHouseLoader.loadPackagePurchaseData(finalDF)
+            utils.ClickHouseLoader.loadPackagePurchaseData(finalDF, index)
             logger.info("PackagePurchase data loaded to ClickHouse with config defaults")
           case "PackagePurchaseExtras" =>
-            utils.ClickHouseLoader.loadPackagePurchaseExtrasData(finalDF)
+            utils.ClickHouseLoader.loadPackagePurchaseExtrasData(finalDF, index)
             logger.info("PackagePurchaseExtras data loaded to ClickHouse with config defaults")
           case _ =>
             throw new IllegalArgumentException(s"Unknown feature group: $name")
@@ -272,12 +259,9 @@ object FeatureMaker {
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"${name} task completed: Final output written to $outPath")
 
-        utils.ClickHouseLoader.loadArpuFeaturesData(finalDF)
+
+        utils.ClickHouseLoader.loadArpuFeaturesData(finalDF, index)
         logger.info("Arpu data loaded to ClickHouse with config defaults")
 
 
@@ -318,13 +302,10 @@ object FeatureMaker {
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"Recharge task completed: Final output written to $outPath")
+
 
         // Load to ClickHouse with config defaults
-        utils.ClickHouseLoader.loadRechargeData(finalDF)
+        utils.ClickHouseLoader.loadRechargeData(finalDF, index)
         logger.info("Recharge data loaded to ClickHouse with config defaults")
 
 
@@ -333,26 +314,22 @@ object FeatureMaker {
         val outputColumns = reverseMapOfList(
           aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
         )
-        logger.info("point 5")
-        Thread.sleep(3000)
+
 
         // Step 1 — Aggregate for two months
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
-        logger.info("point 6")
-        Thread.sleep(3000)
+
 
         logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
 
         // Step 2 — Join in-memory
         val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq(bibID), "outer"))
-        logger.info("point 7")
-        Thread.sleep(3000)
+
         val repartitioned = joinedDF.repartition(144, col(bibID)).cache()
         repartitioned.count()  // trigger cache
-        logger.info("point 8")
-        Thread.sleep(3000)
+
 
         logger.info("Join complete")
         logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
@@ -360,15 +337,12 @@ object FeatureMaker {
         // Step 3 — Fill missing values using defaults
         val featureDefaultsConfig = appConfig.getConfig("featureDefaults.loanassign_features")
 
-        logger.info("point 9")
-        Thread.sleep(3000)
+
 
         val featureDefaults: Map[String, Any] = featureDefaultsConfig.entrySet().toArray
           .map(_.toString.split("=")(0).trim)
           .map(k => k -> featureDefaultsConfig.getAnyRef(k))
           .toMap
-        logger.info("point 10")
-        Thread.sleep(3000)
 
         var finalDF = repartitioned
         featureDefaults.foreach { case (colName, defaultVal) =>
@@ -376,17 +350,13 @@ object FeatureMaker {
             finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
           }
         }
-        logger.info("point 11")
-        Thread.sleep(3000)
+
 
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"${name} task completed: Final output written to $outPath")
-        utils.ClickHouseLoader.loadLoanAssignData(finalDF)
+
+        utils.ClickHouseLoader.loadLoanAssignData(finalDF, index)
         logger.info("LoanAssign data loaded to ClickHouse with config defaults")
 
       case "LoanRec" =>
@@ -426,12 +396,9 @@ object FeatureMaker {
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"${name} task completed: Final output written to $outPath")
 
-        utils.ClickHouseLoader.loadLoanRecData(finalDF)
+
+        utils.ClickHouseLoader.loadLoanRecData(finalDF, index)
         logger.info("LoanRec data loaded to ClickHouse with config defaults")
 
       case "CDR" =>
@@ -471,22 +438,15 @@ object FeatureMaker {
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"${name} task completed: Final output written to $outPath")
 
-//        println("point 9")
-//        Thread.sleep(3000)
 
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-//        println("point 10")
-//        Thread.sleep(3000)
+
 
         // Load to ClickHouse with config defaults
-        utils.ClickHouseLoader.loadCDRData(finalDF)
+        utils.ClickHouseLoader.loadCDRData(finalDF, index)
         logger.info("CDR data loaded to ClickHouse with config defaults")
 
       case "CreditManagement" =>
@@ -526,12 +486,8 @@ object FeatureMaker {
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"${name} task completed: Final output written to $outPath")
-        // Load to ClickHouse with config defaults
-        utils.ClickHouseLoader.loadCreditManagementData(finalDF)
+
+        utils.ClickHouseLoader.loadCreditManagementData(finalDF, index)
         logger.info("Credit Management data loaded to ClickHouse with config defaults")
 
       case "UserInfo" =>
@@ -571,37 +527,29 @@ object FeatureMaker {
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"${name} task completed: Final output written to $outPath")
-        utils.ClickHouseLoader.loadUserInfoData(finalDF)
+
+        utils.ClickHouseLoader.loadUserInfoData(finalDF, index)
         logger.info("User Info data loaded to ClickHouse with config defaults")
 
 
       case "DomesticTravel" =>
-        logger.info("point 9")
-        Thread.sleep(3000)
+
         val outputColumns = reverseMapOfList(
           aggregationColsYaml.filter(_.name == name).map(_.features).flatMap(_.toList).toMap
         )
-        logger.info("point 10")
-        Thread.sleep(3000)
+
         // Step 1 — Aggregate for two months
         val aggregatedDataFrames: Seq[DataFrame] =
           aggregate(name = name, indices = indices, outputColumns = outputColumns, index = index)
 
         logger.info(s"Aggregated ${aggregatedDataFrames.size} monthly ${name} DFs")
-        logger.info("point 11")
-        Thread.sleep(3000)
+
         // Step 2 — Join in-memory
         val joinedDF = aggregatedDataFrames.reduce(_.join(_, Seq("fake_msisdn"), "outer"))
-        logger.info("point 12")
-        Thread.sleep(3000)
+
         val repartitioned = joinedDF.repartition(144, col("fake_msisdn")).cache()
         repartitioned.count()  // trigger cache
-        logger.info("point 13")
-        Thread.sleep(3000)
+
         logger.info("Join complete")
         logger.info(s"Joined RDD lineage:\n${repartitioned.rdd.toDebugString}")
 
@@ -611,25 +559,20 @@ object FeatureMaker {
           .map(_.toString.split("=")(0).trim)
           .map(k => k -> featureDefaultsConfig.getAnyRef(k))
           .toMap
-        logger.info("point 14")
-        Thread.sleep(3000)
+
         var finalDF = repartitioned
         featureDefaults.foreach { case (colName, defaultVal) =>
           if (finalDF.columns.contains(colName)) {
             finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultVal)))
           }
         }
-        logger.info("point 15")
-        Thread.sleep(3000)
+
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"${name} task completed: Final output written to $outPath")
 
-        utils.ClickHouseLoader.loadDomesticTravelData(finalDF)
+
+        utils.ClickHouseLoader.loadDomesticTravelData(finalDF, index)
         logger.info("Domestic Travel data loaded to ClickHouse with config defaults")
 
       case "PostPaid" =>
@@ -688,12 +631,9 @@ object FeatureMaker {
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"${name} task completed: Final output written to $outPath")
 
-        utils.ClickHouseLoader.loadPostPaidFeaturesData(finalDF)
+
+        utils.ClickHouseLoader.loadPostPaidFeaturesData(finalDF, index)
         logger.info("PostPaid data loaded to ClickHouse with config defaults")
 
       case "Package" =>
@@ -733,11 +673,8 @@ object FeatureMaker {
         logger.info("Default value filling complete")
         logger.info(s"FinalDF RDD lineage:\n${finalDF.rdd.toDebugString}")
 
-        // Step 4 — Final write
-//        val outPath = s"${appConfig.getString("outputPath")}/${name}_features_${index}_index/"
-//        finalDF.write.mode("overwrite").parquet(outPath)
-//        logger.info(s"${name} task completed: Final output written to $outPath")
-        utils.ClickHouseLoader.loadPackageFeaturesData(finalDF)
+
+        utils.ClickHouseLoader.loadPackageFeaturesData(finalDF, index)
         logger.info("Package data loaded to ClickHouse with config defaults")
 
 

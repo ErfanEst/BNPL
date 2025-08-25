@@ -39,7 +39,7 @@ object Core {
 
   lazy val spark: SparkSession = SparkConfigurator.buildSparkSession()
 
-  val logger = Logger.getLogger("CDR")
+  val logger = Logger.getLogger("ETL Process")
 
   implicit private val yamlTablesFormat: YamlFormat[YamlTableData] = yamlFormat2(YamlTableData)
 
@@ -72,16 +72,7 @@ object Core {
     }
   }
 
-  //  class IndexedColumn(val index: Int, val rangedName: String)
-  //
-  //   object IndexedColumn {
-  //    def apply(index: Int, name: String): String = name  // ✅ No more prefix
-  //
-  //    def unapply(column: String): IndexedColumn = {
-  //      val seq = column.split('_')
-  //      new IndexedColumn(seq.head.toInt, seq.tail.mkString("_"))
-  //    }
-  //  }
+
 
   case class IndexedColumn(index: Int, name: String)
 

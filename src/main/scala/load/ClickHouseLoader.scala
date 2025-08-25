@@ -7,206 +7,115 @@ import core.Core.{appConfig, logger, spark}
 
 object ClickHouseLoader {
 
-  def loadCDRData(aggregatedDF: DataFrame): Unit = {
+  def loadCDRData(aggregatedDF: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createCDRFeaturesTable()
+    TableCreation.createCDRFeaturesTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.cdr_features")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
 
-    // Fill missing values with defaults
-    var finalDF = aggregatedDF
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    aggregatedDF.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "CDR_features") // must match the case used in ClickHouse
+      .option("dbtable", s"CDR_features_$index") // must match the case used in ClickHouse
       .mode(SaveMode.Append)
       .save()
 
     logger.info("CDR features written to ClickHouse successfully.")
   }
 
-  def loadRechargeData(rechargeDF: DataFrame): Unit = {
+  def loadRechargeData(rechargeDF: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createRechargeFeaturesTable()
-
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.recharge_features")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = rechargeDF
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
-
+    TableCreation.createRechargeFeaturesTable(index)
 
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    rechargeDF.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "recharge_features")
+      .option("dbtable", s"recharge_features_$index")
       .mode(SaveMode.Append)
       .save()
 
     logger.info("Recharge features written to ClickHouse successfully.")
   }
 
-  def loadCreditManagementData(aggregatedDF: DataFrame): Unit = {
+  def loadCreditManagementData(aggregatedDF: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createCreditManagementFeaturesTable()
+    TableCreation.createCreditManagementFeaturesTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.credit_management_features")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = aggregatedDF
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    aggregatedDF.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "credit_management_features") // matches the table created earlier
+      .option("dbtable", s"credit_management_features_$index") // matches the table created earlier
       .mode(SaveMode.Append)
       .save()
 
     logger.info("Credit Management features written to ClickHouse successfully.")
   }
-  def loadUserInfoData(aggregatedDF: DataFrame): Unit = {
+  def loadUserInfoData(aggregatedDF: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createUserInfoFeaturesTable()
+    TableCreation.createUserInfoFeaturesTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.user_info_features")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = aggregatedDF
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    aggregatedDF.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "userinfo_features")
+      .option("dbtable", s"userinfo_features_$index")
       .mode(SaveMode.Append)
       .save()
 
     logger.info("UserInfo features written to ClickHouse successfully.")
   }
 
-  def loadDomesticTravelData(aggregatedDF: DataFrame): Unit = {
+  def loadDomesticTravelData(aggregatedDF: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createDomesticTravelFeaturesTable()
+    TableCreation.createDomesticTravelFeaturesTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.domestic_travel_features")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = aggregatedDF
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    aggregatedDF.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "domestic_travel_features")
+      .option("dbtable", s"domestic_travel_features_$index")
       .mode(SaveMode.Append)
       .save()
 
     logger.info("Domestic Travel features written to ClickHouse successfully.")
   }
 
-  def loadLoanRecData(aggregatedDF: DataFrame): Unit = {
+  def loadLoanRecData(aggregatedDF: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createLoanRecFeaturesTable()
+    TableCreation.createLoanRecFeaturesTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.loanrec_features")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = aggregatedDF
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    aggregatedDF.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "loanrec_features")
+      .option("dbtable", s"loanrec_features_$index")
       .mode(SaveMode.Append)
       .save()
 
@@ -214,102 +123,57 @@ object ClickHouseLoader {
   }
 
 
-  def loadLoanAssignData(aggregatedDF: DataFrame): Unit = {
+  def loadLoanAssignData(aggregatedDF: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createLoanAssignFeaturesTable()
+    TableCreation.createLoanAssignFeaturesTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.loanassign_features")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = aggregatedDF
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    aggregatedDF.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "loanassign_features")
+      .option("dbtable", s"loanassign_features_$index")
       .mode(SaveMode.Append)
       .save()
 
     logger.info("LoanAssign features written to ClickHouse successfully.")
   }
 
-  def loadPackagePurchaseExtrasData(aggregatedDF: DataFrame): Unit = {
+  def loadPackagePurchaseExtrasData(aggregatedDF: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createPackagePurchaseExtrasTable()
+    TableCreation.createPackagePurchaseExtrasTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.package_purchase_extras_features")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = aggregatedDF
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    aggregatedDF.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "package_purchase_extras_features")
+      .option("dbtable", s"package_purchase_extras_features_$index")
       .mode(SaveMode.Append)
       .save()
 
     logger.info("PackagePurchaseExtras features written to ClickHouse successfully.")
   }
 
-  def loadPackagePurchaseData(df: DataFrame): Unit = {
+  def loadPackagePurchaseData(df: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createPackagePurchaseFeaturesTable()
+    TableCreation.createPackagePurchaseFeaturesTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.package_purchase_features")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = df
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    df.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "package_purchase_features")
+      .option("dbtable", s"package_purchase_features_$index")
       .mode(SaveMode.Append)
       .save()
 
@@ -319,102 +183,57 @@ object ClickHouseLoader {
 
 
 
-  def loadPostPaidFeaturesData(df: DataFrame): Unit = {
+  def loadPostPaidFeaturesData(df: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createPostPaidFeaturesTable()
+    TableCreation.createPostPaidFeaturesTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.post-paid-credit")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = df
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    df.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "postpaid_features")
+      .option("dbtable", s"postpaid_features_$index")
       .mode(SaveMode.Append)
       .save()
 
     logger.info("PostPaid features written to ClickHouse successfully.")
   }
 
-  def loadBankInfoFeaturesData(df: DataFrame): Unit = {
+  def loadBankInfoFeaturesData(df: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createBankInfoFeaturesTable()
+    TableCreation.createBankInfoFeaturesTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.bank_info_features")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = df
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    df.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "bankinfo_features")
+      .option("dbtable", s"bankinfo_features_$index")
       .mode(SaveMode.Append)
       .save()
 
     logger.info("BankInfo features written to ClickHouse successfully.")
   }
 
-  def loadHandsetPriceFeaturesData(df: DataFrame): Unit = {
+  def loadHandsetPriceFeaturesData(df: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createHandsetPriceFeaturesTable()
+    TableCreation.createHandsetPriceFeaturesTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.handset_price")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = df
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    df.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "handset_price_features")
+      .option("dbtable", s"handset_price_features_$index")
       .mode(SaveMode.Append)
       .save()
 
@@ -425,81 +244,37 @@ object ClickHouseLoader {
 
 
 
-  def loadPackageFeaturesData(df: DataFrame): Unit = {
+  def loadPackageFeaturesData(df: DataFrame, index: Int): Unit = {
     // Ensure table exists
-    TableCreation.createPackageFeaturesTable()
+    TableCreation.createPackageFeaturesTable(index)
 
-    // Load feature defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.package_features")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-    val featureDefaults: Map[String, Any] = featureKeys.map { key =>
-      val value = featureDefaultsConfig.getAnyRef(key)
-      key -> value
-    }.toMap
-
-    // Fill missing values with defaults
-    var finalDF = df
-    featureDefaults.foreach { case (colName, defaultValue) =>
-      if (finalDF.columns.contains(colName)) {
-        finalDF = finalDF.withColumn(colName, coalesce(col(colName), lit(defaultValue)))
-      }
-    }
 
     // Write to ClickHouse using JDBC
-    finalDF.write
+    df.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "package_features")
+      .option("dbtable", s"package_features_$index")
       .mode(SaveMode.Append)
       .save()
 
     logger.info("Package features written to ClickHouse successfully.")
   }
 
-  def loadArpuFeaturesData(df: DataFrame): Unit = {
+  def loadArpuFeaturesData(df: DataFrame, index: Int): Unit = {
     // Ensure table exists first
-    TableCreation.createArpuFeaturesTable()
-
-    // Register DF as temp view for SQL defaults like AVG(age_1)
-    df.createOrReplaceTempView("finalDF_view")
-
-    // Load defaults from config
-    val featureDefaultsConfig = appConfig.getConfig("featureDefaults.arpu")
-    val featureKeys = featureDefaultsConfig.entrySet().toArray.map(_.toString.split("=")(0).trim)
-
-    var finalDF = df
-
-    featureKeys.foreach { rawKey =>
-      val key = rawKey.stripPrefix(""").stripSuffix(""") // remove quotes
-      val configValue = featureDefaultsConfig.getString(rawKey)
-
-      val replacementCol =
-        if (configValue.trim.toUpperCase.startsWith("SELECT")) {
-          // Execute SQL default
-          val computedVal = spark.sql(configValue).first().get(0)
-          lit(computedVal)
-        } else {
-          // Static numeric default
-          if (configValue.contains(".")) lit(configValue.toDouble)
-          else lit(configValue.toInt)
-        }
-
-      if (finalDF.columns.contains(key)) {
-        finalDF = finalDF.withColumn(key, coalesce(col(key), replacementCol))
-      }
-    }
+    TableCreation.createArpuFeaturesTable(index)
 
     // Write to ClickHouse
-    finalDF.write
+    df.write
       .format("jdbc")
       .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
       .option("url", appConfig.getString("clickhouse.url"))
       .option("user", appConfig.getString("clickhouse.user"))
       .option("password", appConfig.getString("clickhouse.password"))
-      .option("dbtable", "arpu_features")
+      .option("dbtable", s"arpu_features_$index")
       .mode(SaveMode.Append)
       .save()
 

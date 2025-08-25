@@ -5,10 +5,11 @@ import java.sql.DriverManager
 import core.Core.{appConfig, logger}
 
 object TableCreation {
-  def createCDRFeaturesTable(): Unit = {
+  def createCDRFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"CDR_features_${index}"
 
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
 
@@ -17,8 +18,8 @@ object TableCreation {
       val stmt = conn.createStatement()
 
       stmt.execute(
-        """
-        CREATE TABLE IF NOT EXISTS CDR_features (
+        s"""
+        CREATE TABLE IF NOT EXISTS $tableName (
           bib_id String,
 
           -- 1-month window
@@ -71,13 +72,14 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("CDR_feature Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
-  def createRechargeFeaturesTable(): Unit = {
+  def createRechargeFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"recharge_features_${index}"
 
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
 
@@ -86,8 +88,8 @@ object TableCreation {
       val stmt = conn.createStatement()
 
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS recharge_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         bib_id String,
         count_recharge_1 Int64,
         ratio_afternoon_recharge_1 Float64,
@@ -114,14 +116,15 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("recharge_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
-  def createCreditManagementFeaturesTable(): Unit = {
+  def createCreditManagementFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"credit_management_features_${index}"
 
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
 
@@ -130,8 +133,8 @@ object TableCreation {
       val stmt = conn.createStatement()
 
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS credit_management_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         fake_msisdn String,
         avg_days_ontime_1 Float64,
         avg_days_delayed_1 Float64,
@@ -154,15 +157,16 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("credit_management_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
 
-  def createUserInfoFeaturesTable(): Unit = {
+  def createUserInfoFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"userinfo_features_${index}"
 
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
 
@@ -171,8 +175,8 @@ object TableCreation {
       val stmt = conn.createStatement()
 
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS userinfo_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         bib_id String,
         `abstat_HARD_1` Int32,
         `abstat_ERASED_1` Int32,
@@ -191,14 +195,15 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("userinfo_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
-  def createDomesticTravelFeaturesTable(): Unit = {
+  def createDomesticTravelFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"domestic_travel_features_${index}"
 
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
 
@@ -207,8 +212,8 @@ object TableCreation {
       val stmt = conn.createStatement()
 
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS domestic_travel_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         fake_msisdn String,
         avg_daily_travel_1 Float64,
         unique_travel_days_1 Int64,
@@ -231,15 +236,15 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("domestic_travel_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
-  def createLoanRecFeaturesTable(): Unit = {
+  def createLoanRecFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
-
+    val tableName = s"loanrec_features_${index}"
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
 
     val conn = DriverManager.getConnection(url, user, password)
@@ -247,8 +252,8 @@ object TableCreation {
       val stmt = conn.createStatement()
 
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS loanrec_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         bib_id String,
         `mean_time_to_repay_1` Float64,
         `mean_time_to_repay_2` Float64
@@ -259,21 +264,22 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("loanrec_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
-  def createLoanAssignFeaturesTable(): Unit = {
+  def createLoanAssignFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"loanassign_features_${index}"
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
     val conn = DriverManager.getConnection(url, user, password)
     try {
       val stmt = conn.createStatement()
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS loanassign_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         bib_id String,
         `loan_amount_max_1` Int32,
         `count_loans_1` Int64,
@@ -296,21 +302,22 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("LoanAssign_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
-  def createPackagePurchaseExtrasTable(): Unit = {
+  def createPackagePurchaseExtrasTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"package_purchase_extras_features_${index}"
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
     val conn = DriverManager.getConnection(url, user, password)
     try {
       val stmt = conn.createStatement()
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS package_purchase_extras_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         fake_msisdn String,
         CNT_INDIRECT_PURCHASE_1 Int64,
         `service_v[BillPayment]_1` Int64,
@@ -341,23 +348,24 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("package_purchase_extras_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
 
 
-  def createPackagePurchaseFeaturesTable(): Unit = {
+  def createPackagePurchaseFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"package_purchase_features_${index}"
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
     val conn = DriverManager.getConnection(url, user, password)
     try {
       val stmt = conn.createStatement()
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS package_purchase_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         fake_msisdn String,
         avg_DATA_BUYABLE_1 Float64,
         sum_service_cnt_1 Int64,
@@ -394,23 +402,24 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("package_purchase_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
 
 
-  def createPostPaidFeaturesTable(): Unit = {
+  def createPostPaidFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"postpaid_features_${index}"
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
     val conn = DriverManager.getConnection(url, user, password)
     try {
       val stmt = conn.createStatement()
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS postpaid_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         fake_msisdn String,
         is_creditor_1 Int32,
         unbilled_ratio_1 Float64,
@@ -434,21 +443,22 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("postpaid_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
-  def createBankInfoFeaturesTable(): Unit = {
+  def createBankInfoFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"bankinfo_features_${index}"
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
     val conn = DriverManager.getConnection(url, user, password)
     try {
       val stmt = conn.createStatement()
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS bankinfo_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         fake_msisdn String,
         bank_active_days_count_1 Int64,
         bank_loyalty_ratio_first_1 Float64,
@@ -468,21 +478,22 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("bankinfo_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
-  def createHandsetPriceFeaturesTable(): Unit = {
+  def createHandsetPriceFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"handset_price_features_${index}"
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
     val conn = DriverManager.getConnection(url, user, password)
     try {
       val stmt = conn.createStatement()
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS handset_price_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         fake_msisdn String,
         xiaomi_usage_ratio_1 Int64,
         `handset_v[4]_1` Int64,
@@ -523,21 +534,22 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("handset_price_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
-  def createPackageFeaturesTable(): Unit = {
+  def createPackageFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"package_features_${index}"
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
     val conn = DriverManager.getConnection(url, user, password)
     try {
       val stmt = conn.createStatement()
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS package_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
         bib_id String,
         mean_package_period_1 Float64,
         ratio_offeramount_zero_1 Float64,
@@ -564,23 +576,24 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("package_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
 
 
-  def createArpuFeaturesTable(): Unit = {
+  def createArpuFeaturesTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
+    val tableName = s"arpu_features_${index}"
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
     val conn = DriverManager.getConnection(url, user, password)
     try {
       val stmt = conn.createStatement()
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS arpu_features (
+        s"""
+      CREATE TABLE IF NOT EXISTS $tableName  (
         fake_msisdn String,
         sms_revenue_first_1 Float64,
         subscription_revenue_first_1 Float64,
@@ -615,7 +628,7 @@ object TableCreation {
       )
     } finally {
       conn.close()
-      logger.info("arpu_features Table Created Successfully")
+      logger.info(s"$tableName Table Created Successfully")
     }
   }
 
@@ -627,7 +640,7 @@ object TableCreation {
 
 
 
-  def createFeatureStoreTable(): Unit = {
+  def createFeatureStoreTable(index: Int): Unit = {
     val url = appConfig.getString("clickhouse.url")
     val user = appConfig.getString("clickhouse.user")
     val password = appConfig.getString("clickhouse.password")
@@ -639,8 +652,8 @@ object TableCreation {
       val stmt = conn.createStatement()
 
       stmt.execute(
-        """
-      CREATE TABLE IF NOT EXISTS feature_store (
+        s"""
+      CREATE TABLE IF NOT EXISTS feature_store_$index (
         bib_id String,
 
         -- ================= CDR Features =================

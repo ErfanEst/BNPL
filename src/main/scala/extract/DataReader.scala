@@ -60,7 +60,7 @@ object DataReader {
           s"$basePath/$index/DEFAULT.BNPL_CREDIT_MANAGEMENT"
         )
 
-        val creditRaw = spark.read.parquet(creditPaths: _*)
+        val creditRaw = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_CREDIT_MANAGEMENT")
           .select(neededCols.map(col): _*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -145,7 +145,7 @@ object DataReader {
           s"$basePath/$index/DEFAULT.BNPL_POSTPAID_CREDIT_HISTORY"
         )
 
-        val postPaid = spark.read.parquet(poatpaidPaths: _*)
+        val postPaid = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_POSTPAID_CREDIT_HISTORY")
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -175,17 +175,14 @@ object DataReader {
     fileType match {
 
       case "domestic_travel" =>
-        logger.info("point 1")
-        Thread.sleep(3000)
+
 
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-        logger.info("point 2")
-        Thread.sleep(3000)
+
         val neededCols = Seq(
           "fake_msisdn", "sum_travel", "date_key"
         )
-        logger.info("point 3")
-        Thread.sleep(3000)
+
         val basePath = appConfig.getString("Path.DomesticTravel")
 
         val previousMonth = index - 1
@@ -193,35 +190,29 @@ object DataReader {
           s"$basePath/$previousMonth/DEFAULT.BNPL_DOMESTIC_TRAVELERS",
           s"$basePath/$index/DEFAULT.BNPL_DOMESTIC_TRAVELERS"
         )
-        logger.info("point 4")
-        Thread.sleep(3000)
-        val domestic = spark.read.parquet(domesticPaths: _*)
+
+        val domestic = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_DOMESTIC_TRAVELERS")
           .select(neededCols.map(col):_*)
           .filter(col("fake_msisdn").isNotNull)
-//          .withColumn("fake_msisdn", col("fake_msisdn").cast("string"))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
-        logger.info("point 5")
-        Thread.sleep(3000)
+
 
         val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
         val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
           .dropDuplicates(bibID, nidHash)
           .select(bibID)
-        logger.info("point 6")
-        Thread.sleep(3000)
+
         // Broadcast anti-join to avoid shuffle
         val domesticFiltered = domestic
           .join(broadcast(changeOwnerships), domestic("fake_msisdn") === changeOwnerships(bibID), "left_anti")
           .filter(col("fake_msisdn").isNotNull)
           .dropDuplicates()
           .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
-        logger.info("point 7")
-        Thread.sleep(3000)
+
         logger.info(s"${fileType} created — count: " + domesticFiltered.take(1).mkString("Array(", ", ", ")"))
         logger.info(s"${fileType} lineage:\n" + domesticFiltered.rdd.toDebugString)
-        logger.info("point 8")
-        Thread.sleep(3000)
+
         domesticFiltered
     }
   }
@@ -244,7 +235,7 @@ object DataReader {
           s"$basePath/$index/DEFAULT.BNPL_PACKAGE_PURCHASE"
         )
 
-        val packagePurchase = spark.read.parquet(pkgPurchasePaths: _*)
+        val packagePurchase = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_PACKAGE_PURCHASE")
           .select(neededCols.map(col):_*)
           .filter(col("amount") > lit(0) && col("cnt") > lit(0))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -285,10 +276,9 @@ object DataReader {
           s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGNEE",
           s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGNEE"
         )
-        logger.info("point 1")
-        Thread.sleep(3000)
 
-        val loanAssign = spark.read.parquet(loanAssignPaths: _*)
+
+        val loanAssign = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGNEE")
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -296,16 +286,14 @@ object DataReader {
           .withColumn("loan_id", col("loan_id").cast("long"))
           .withColumn("loan_amount", col("loan_amount").cast("int"))
           .drop("date_key")
-        logger.info("point 2")
-        Thread.sleep(3000)
+
 
         val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
         val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
           .dropDuplicates(bibID, nidHash)
           .select(bibID)
 
-        logger.info("point 3")
-        Thread.sleep(3000)
+
 
         // Broadcast anti join to avoid shuffle
         val loanAssignFiltered = loanAssign
@@ -313,8 +301,7 @@ object DataReader {
           .filter(col(bibID).isNotNull)
           .dropDuplicates()
           .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
-        logger.info("point 4")
-        Thread.sleep(3000)
+
         logger.info(s"${fileType} created — count: " + loanAssignFiltered.take(1).mkString("Array(", ", ", ")"))
         logger.info(s"${fileType} lineage:\n" + loanAssignFiltered.rdd.toDebugString)
 
@@ -339,7 +326,7 @@ object DataReader {
           s"$basePathRec/$index/DEFAULT.BNPL_AAT_LABS_LOAN_REC"
         )
 
-        val recFeat = spark.read.parquet(loanRecPaths: _*)
+        val recFeat = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_AAT_LABS_LOAN_REC")
           .select(neededColsRec.map(col):_*)
           .filter(col("bib_id").isNotNull)
           .withColumn("date_l", to_date(col("date_key"), "yyyyMMdd"))
@@ -360,7 +347,7 @@ object DataReader {
           s"$basePathAssign/$index/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGNEE"
         )
 
-        val loanAssignDf = spark.read.parquet(loanAssignPaths: _*)
+        val loanAssignDf = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGNEE")
           .select(neededColsAssign.map(col):_*)
           .filter(col("bib_id").isNotNull)
           .withColumn("date_r", to_date(col("date_key"), "yyyyMMdd"))
@@ -412,7 +399,7 @@ object DataReader {
           s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_CUSTOMER_INFO_BALANCE_SITEID"
         )
 
-        val user = spark.read.parquet(userInfoPaths: _*)
+        val user = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_AAT_LABS_CUSTOMER_INFO_BALANCE_SITEID")
           .select(neededCols.map(col):_*)
           .filter(col(bibID).isNotNull)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -453,7 +440,7 @@ object DataReader {
           s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_ONLINE_BOLTON"
         )
 
-        val pkg = spark.read.parquet(packagePaths: _*)
+        val pkg = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_AAT_LABS_ONLINE_BOLTON")
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -497,7 +484,7 @@ object DataReader {
           "call_duration", "gprs_usage", "voice_session_cost", "date_key"
         )
 
-        val cdr = spark.read.parquet(cdrPaths: _*)
+        val cdr = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_AAT_LABS_CDR")
           .filter(col(bibID).isNotNull)
           .select(neededCols.map(col): _*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -539,7 +526,7 @@ object DataReader {
           s"$basePath/$index/DEFAULT.BNPL_HANDSET_PRICE"
         )
 
-        var handsetPrice = spark.read.parquet(handsetPaths: _*)
+        var handsetPrice = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_HANDSET_PRIC")
           .select(neededCols.map(col):_*)
           .withColumn("handset_brand_array", array("handset_brand"))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -590,7 +577,7 @@ object DataReader {
           s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_ARPU"
         )
 
-        val arpu = spark.read.parquet(arpuPaths: _*)
+        val arpu = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_ARPU_AND_PROFILE_INFO")
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -653,7 +640,7 @@ object DataReader {
           }
         }
 
-        val bankInfo = spark.read.parquet(bankinfoPaths: _*)
+        val bankInfo = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_PERSON_TYPE_AND_BANK_INFO")
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -698,7 +685,7 @@ object DataReader {
           s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_RECHARGE"
         )
 
-        val recharge = spark.read.parquet(rechPaths: _*)
+        val recharge = spark.read.parquet("/home/yazdan/Desktop/Erfan_sample/DEFAULT.BNPL_AAT_LABS_RECHARGE")
           .filter(col(bibID).isNotNull)
           .select(neededCols.map(col): _*)
           .withColumn("recharge_dt", to_timestamp(col("recharge_dt"), "yyyyMMdd' 'HH:mm:ss"))
@@ -721,7 +708,7 @@ object DataReader {
         logger.info("rechFiltered lineage:\n" + rechFiltered.rdd.toDebugString)
 
         recharge.printSchema()
-        Thread.sleep(10000)
+
 
         recharge
     }

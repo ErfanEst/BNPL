@@ -1,24 +1,81 @@
 package task
 
 import com.typesafe.config.ConfigFactory
+import org.rogach.scallop.{ScallopConf, ScallopOption}
 import utils.TableCreation
+import core.Core.logger
 
 import java.sql.DriverManager
 import scala.collection.JavaConverters._
 
 object FeatureStoreBuilder {
+
+  // buffer to collect query-like defaults for CTE
+  private val cteExpressions = scala.collection.mutable.ListBuffer.empty[String]
+
+  private def safeColName(alias: String, colName: String): String = {
+    val escapedCol = colName.replace("`", "``")
+    s"$alias.`$escapedCol`"
+  }
+
+  def buildExpr(tableAlias: String, col: String, default: String, index: Long): String = {
+
+    println(tableAlias, col, default, index)
+    Thread.sleep(250)
+
+    val safeCol = s"`$col`"
+
+    if (default == null || default.trim.isEmpty) {
+      s"$tableAlias.$safeCol"
+    } else if (default.trim.toUpperCase == "NULL") {
+      s"COALESCE($tableAlias.$safeCol, NULL)"
+    } else if (default.trim.matches("""^-?\d+(\.\d+)?$""")) {
+      s"COALESCE($tableAlias.$safeCol, $default)"
+    } else if (default.trim.toUpperCase.startsWith("SELECT")) {
+      val queryWithIndex = default.replace("<index>", index.toString)
+
+      val cteName = s"default_${tableAlias}_$col"
+        .replaceAll("""[^a-zA-Z0-9]""", "_")
+
+      // Register this subquery as a CTE
+      cteExpressions += s"$cteName AS ($queryWithIndex)"
+
+      s"COALESCE($tableAlias.$safeCol, $cteName)"
+    } else {
+      s"COALESCE($tableAlias.$safeCol, $default)"
+    }
+  }
+
+  def buildExprList(tableAlias: String, cols: Seq[String], defaults: Map[String, String], index: Long): Seq[String] = {
+    cols.map { col =>
+      val defaultVal = defaults.getOrElse(col, null)
+      buildExpr(tableAlias, col, defaultVal, index)
+    }
+  }
+
+
   def main(args: Array[String]): Unit = {
+    val startTime = System.currentTimeMillis()
+    println(s"Program started at: ${new java.util.Date(startTime)}")
+
+    object Opts extends ScallopConf(args) {
+      val index: ScallopOption[Int] = opt[Int](required = true, descr = "Starting index")
+      verify()
+    }
+    val index = Opts.index()
+    val indices = index to (index - 1) by -1
+    println(s"Index: $index")
+    println(s"Indices: ${indices.mkString(", ")}")
+
     val config = ConfigFactory.load()
-    val clickhouseUrl = config.getString("clickhouse.url")
-    val clickhouseUser = config.getString("clickhouse.user")
-    val clickhousePassword = config.getString("clickhouse.password")
+    val url = config.getString("clickhouse.url")
+    val user = config.getString("clickhouse.user")
+    val pass = config.getString("clickhouse.password")
 
     def getDefaults(table: String): Map[String, String] = {
       val path = s"featureDefaults.$table"
       if (!config.hasPath(path)) Map.empty
-      else config.getConfig(path).entrySet().asScala.map(e =>
-        e.getKey -> e.getValue.unwrapped.toString
-      ).toMap
+      else config.getConfig(path).entrySet().asScala.map(e => e.getKey -> e.getValue.unwrapped.toString).toMap
     }
 
     // Column lists for each table
@@ -134,99 +191,100 @@ object FeatureStoreBuilder {
       "cdr" -> getDefaults("cdr_features"),
       "recharge" -> getDefaults("recharge_features"),
       "credit" -> getDefaults("credit_management_features"),
-      "userinfo" -> getDefaults("userinfo_features"),
+      "userinfo" -> getDefaults("user_info_features"),
       "travel" -> getDefaults("domestic_travel_features"),
       "loanrec" -> getDefaults("loanrec_features"),
       "loanassign" -> getDefaults("loanassign_features"),
       "pkgextras" -> getDefaults("package_purchase_extras_features"),
       "pkgpurchase" -> getDefaults("package_purchase_features"),
-      "postpaid" -> getDefaults("postpaid_features"),
-      "bankinfo" -> getDefaults("bankinfo_features"),
-      "handset" -> getDefaults("handset_price_features"),
+      "postpaid" -> getDefaults("post-paid-credit-2"),
+      "bankinfo" -> getDefaults("bank_info_features"),
+      "handset" -> getDefaults("handset_price"),
       "package" -> getDefaults("package_features"),
-      "arpu" -> getDefaults("arpu_features")
+      "arpu" -> getDefaults("arpu-2")
     )
-
-    def buildExpr(tableAlias: String, cols: List[String], defaults: Map[String, String]): List[String] =
-      cols.map { col =>
-        defaults.get(col).map { v =>
-          // number check: integer or decimal (positive/negative)
-          val needsQuotes = !v.matches("""^-?\d+(\.\d+)?$""")
-          val defVal = if (needsQuotes) s"'$v'" else v
-          s"COALESCE($tableAlias.`$col`, $defVal) AS `$col`"
-        }.getOrElse(s"$tableAlias.`$col` AS `$col`")
-      }
 
 
     val selectColumns =
       (List("ids.bib_id") ++
-        buildExpr("cdr", cdrCols, defaultsMap("cdr")) ++
-        buildExpr("r", rechargeCols, defaultsMap("recharge")) ++
-        buildExpr("c", creditCols, defaultsMap("credit")) ++
-        buildExpr("u", userinfoCols, defaultsMap("userinfo")) ++
-        buildExpr("t", travelCols, defaultsMap("travel")) ++
-        buildExpr("lr", loanRecCols, defaultsMap("loanrec")) ++
-        buildExpr("la", loanAssignCols, defaultsMap("loanassign")) ++
-        buildExpr("pe", pkgExtrasCols, defaultsMap("pkgextras")) ++
-        buildExpr("pp", pkgPurchaseCols, defaultsMap("pkgpurchase")) ++
-        buildExpr("po", postpaidCols, defaultsMap("postpaid")) ++
-        buildExpr("b", bankinfoCols, defaultsMap("bankinfo")) ++
-        buildExpr("h", handsetCols, defaultsMap("handset")) ++
-        buildExpr("pa", packageCols, defaultsMap("package")) ++
-        buildExpr("a", arpuCols, defaultsMap("arpu"))
+        buildExprList("cdr", cdrCols, defaultsMap("cdr"), index.toLong) ++
+        buildExprList("r", rechargeCols, defaultsMap("recharge"), index.toLong) ++
+        buildExprList("c", creditCols, defaultsMap("credit"), index.toLong) ++
+        buildExprList("u", userinfoCols, defaultsMap("userinfo"), index.toLong) ++
+        buildExprList("t", travelCols, defaultsMap("travel"), index.toLong) ++
+        buildExprList("lr", loanRecCols, defaultsMap("loanrec"), index.toLong) ++
+        buildExprList("la", loanAssignCols, defaultsMap("loanassign"), index.toLong) ++
+        buildExprList("pe", pkgExtrasCols, defaultsMap("pkgextras"), index.toLong) ++
+        buildExprList("pp", pkgPurchaseCols, defaultsMap("pkgpurchase"), index.toLong) ++
+        buildExprList("po", postpaidCols, defaultsMap("postpaid"), index.toLong) ++
+        buildExprList("b", bankinfoCols, defaultsMap("bankinfo"), index.toLong) ++
+        buildExprList("h", handsetCols, defaultsMap("handset"), index.toLong) ++
+        buildExprList("pa", packageCols, defaultsMap("package"), index.toLong) ++
+        buildExprList("a", arpuCols, defaultsMap("arpu"), index.toLong)
         ).mkString(",")
 
     val createAllIdsTableSQL =
-      """
-        |CREATE TABLE IF NOT EXISTS all_bib_ids ENGINE = MergeTree() ORDER BY bib_id AS
-        |SELECT bib_id FROM CDR_features
-        |UNION DISTINCT SELECT bib_id FROM recharge_features
-        |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM credit_management_features
-        |UNION DISTINCT SELECT bib_id FROM userinfo_features
-        |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM domestic_travel_features
-        |UNION DISTINCT SELECT bib_id FROM loanrec_features
-        |UNION DISTINCT SELECT bib_id FROM loanassign_features
-        |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM package_purchase_extras_features
-        |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM package_purchase_features
-        |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM postpaid_features
-        |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM bankinfo_features
-        |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM handset_price_features
-        |UNION DISTINCT SELECT bib_id FROM package_features
-        |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM arpu_features
-      """.stripMargin
+      s"""
+         |CREATE TABLE IF NOT EXISTS all_bib_ids_$index ENGINE = MergeTree() ORDER BY bib_id AS
+         |SELECT bib_id FROM CDR_features_$index
+         |UNION DISTINCT SELECT bib_id FROM recharge_features_$index
+         |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM credit_management_features_$index
+         |UNION DISTINCT SELECT bib_id FROM userinfo_features_$index
+         |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM domestic_travel_features_$index
+         |UNION DISTINCT SELECT bib_id FROM loanrec_features_$index
+         |UNION DISTINCT SELECT bib_id FROM loanassign_features_$index
+         |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM package_purchase_extras_features_$index
+         |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM package_purchase_features_$index
+         |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM postpaid_features_$index
+         |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM bankinfo_features_$index
+         |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM handset_price_features_$index
+         |UNION DISTINCT SELECT bib_id FROM package_features_$index
+         |UNION DISTINCT SELECT fake_msisdn AS bib_id FROM arpu_features_$index
+         |""".stripMargin
+
+    val withPart =
+      if (cteExpressions.nonEmpty)
+        cteExpressions.mkString("WITH ", ", ", " ")
+      else
+        ""
 
     val insertSQL =
       s"""
-         |INSERT INTO feature_store
-         |SELECT $selectColumns
-         |FROM all_bib_ids ids
-         |LEFT JOIN CDR_features cdr ON ids.bib_id = cdr.bib_id
-         |LEFT JOIN recharge_features r ON ids.bib_id = r.bib_id
-         |LEFT JOIN credit_management_features c ON ids.bib_id = c.fake_msisdn
-         |LEFT JOIN userinfo_features u ON ids.bib_id = u.bib_id
-         |LEFT JOIN domestic_travel_features t ON ids.bib_id = t.fake_msisdn
-         |LEFT JOIN loanrec_features lr ON ids.bib_id = lr.bib_id
-         |LEFT JOIN loanassign_features la ON ids.bib_id = la.bib_id
-         |LEFT JOIN package_purchase_extras_features pe ON ids.bib_id = pe.fake_msisdn
-         |LEFT JOIN package_purchase_features pp ON ids.bib_id = pp.fake_msisdn
-         |LEFT JOIN postpaid_features po ON ids.bib_id = po.fake_msisdn
-         |LEFT JOIN bankinfo_features b ON ids.bib_id = b.fake_msisdn
-         |LEFT JOIN handset_price_features h ON ids.bib_id = h.fake_msisdn
-         |LEFT JOIN package_features pa ON ids.bib_id = pa.bib_id
-         |LEFT JOIN arpu_features a ON ids.bib_id = a.fake_msisdn
+         |$withPart
+         |INSERT INTO feature_store_$index
+         |SELECT
+         |  $selectColumns
+         |FROM all_bib_ids_$index ids
+         |LEFT JOIN CDR_features_$index cdr ON ids.bib_id = cdr.bib_id
+         |LEFT JOIN recharge_features_$index r ON ids.bib_id = r.bib_id
+         |LEFT JOIN credit_management_features_$index c ON ids.bib_id = c.fake_msisdn
+         |LEFT JOIN userinfo_features_$index u ON ids.bib_id = u.bib_id
+         |LEFT JOIN domestic_travel_features_$index t ON ids.bib_id = t.fake_msisdn
+         |LEFT JOIN loanrec_features_$index lr ON ids.bib_id = lr.bib_id
+         |LEFT JOIN loanassign_features_$index la ON ids.bib_id = la.bib_id
+         |LEFT JOIN package_purchase_extras_features_$index pe ON ids.bib_id = pe.fake_msisdn
+         |LEFT JOIN package_purchase_features_$index pp ON ids.bib_id = pp.fake_msisdn
+         |LEFT JOIN postpaid_features_$index po ON ids.bib_id = po.fake_msisdn
+         |LEFT JOIN bankinfo_features_$index b ON ids.bib_id = b.fake_msisdn
+         |LEFT JOIN handset_price_features_$index h ON ids.bib_id = h.fake_msisdn
+         |LEFT JOIN package_features_$index pa ON ids.bib_id = pa.bib_id
+         |LEFT JOIN arpu_features_$index a ON ids.bib_id = a.fake_msisdn
          |SETTINGS join_use_nulls = 1
-      """.stripMargin
+         |""".stripMargin
 
     Class.forName("com.clickhouse.jdbc.ClickHouseDriver")
-    val conn = DriverManager.getConnection(clickhouseUrl, clickhouseUser, clickhousePassword)
+    val conn = DriverManager.getConnection(url, user, pass)
     try {
       val stmt = conn.createStatement()
-      TableCreation.createFeatureStoreTable()
+      TableCreation.createFeatureStoreTable(index)
       stmt.execute(createAllIdsTableSQL)
       stmt.execute(insertSQL)
-      println("feature_store has been populated with all joined feature tables and defaults.")
+      logger.info(s"feature_store_$index populated.")
     } finally {
       conn.close()
     }
+
+    println(s"Program completed at: ${new java.util.Date(System.currentTimeMillis())}")
+    println(s"Total execution time: ${(System.currentTimeMillis() - startTime) / 1000.0} seconds")
   }
 }
