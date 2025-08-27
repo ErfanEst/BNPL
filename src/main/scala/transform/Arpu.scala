@@ -17,17 +17,17 @@ class Arpu(override val uid: String) extends AbstractAggregator {
 
     case "age"                            => max("age")
 
-    case "res_com_score_first"            => last(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("dense_rank") === 1), col("res_com_score")).otherwise(0))
-    case "voice_revenue_first"            => sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("voice_revenue")))
-    case "gprs_revenue_first"             => sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("gprs_revenue")))
-    case "sms_revenue_first"              => sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("sms_revenue")))
-    case "subscription_revenue_first"     => sum(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("count_dense_rank") === 1), col("subscription_revenue")))
+    case "res_com_score"            => max(when((col("dense_rank") === 2 &&  col("count_dense_rank")  > 1) || (col("dense_rank") === 1 &&  col("dense_rank") === 1), col("res_com_score")).otherwise(0))
+    case "voice_revenue"            => sum(col("voice_revenue"))
+    case "gprs_revenue"             => sum(col("gprs_revenue"))
+    case "sms_revenue"              => sum(col("sms_revenue"))
+    case "subscription_revenue"     => sum(col("subscription_revenue"))
 
-    case "res_com_score_second"           => last(col("res_com_score_2")) + last(col("res_com_score_1"))
-    case "voice_revenue_second"           => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("voice_revenue")).otherwise(0))
-    case "gprs_revenue_second"            => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("gprs_revenue")).otherwise(0))
-    case "sms_revenue_second"             => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("sms_revenue")).otherwise(0))
-    case "subscription_revenue_second"    => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("subscription_revenue")).otherwise(0))
+//    case "res_com_score_second"           => last(col("res_com_score_2")) + last(col("res_com_score_1"))
+//    case "voice_revenue_second"           => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("voice_revenue")).otherwise(0))
+//    case "gprs_revenue_second"            => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("gprs_revenue")).otherwise(0))
+//    case "sms_revenue_second"             => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("sms_revenue")).otherwise(0))
+//    case "subscription_revenue_second"    => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("subscription_revenue")).otherwise(0))
 
     case "gender"                  => last(when(col("gender") === "F", 1).otherwise(0))
 
@@ -38,7 +38,7 @@ class Arpu(override val uid: String) extends AbstractAggregator {
     case "site__large_city"        => first("site__large_city")
 
     case "site__Airport"        => first(when(col("site_type") === "Airport", 1).otherwise(0))
-    case "site__Industrial Area" => last(when(col("site_type") === "Industrial Area", 1).otherwise(0))
+    case "site__Industrial Area" => first(when(col("site_type") === "Industrial Area", 1).otherwise(0))
     case "site__Island"         => first(when(col("site_type") === "Island", 1).otherwise(0))
     case "site__Oil Platform"   => first(when(col("site_type") === "Oil Platform", 1).otherwise(0))
     case "site__Port"           => first(when(col("site_type") === "Port", 1).otherwise(0))
@@ -58,7 +58,6 @@ class Arpu(override val uid: String) extends AbstractAggregator {
   def listProducedBeforeTransform: Seq[(String, Column)] = {
 
     val w = Window.partitionBy("fake_msisdn").orderBy(month_index)
-//    val w1 = Window.partitionBy("fake_msisdn")
 
     Seq(
 
@@ -73,15 +72,6 @@ class Arpu(override val uid: String) extends AbstractAggregator {
       "sms_revenue_2" -> sum(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("sms_revenue")).otherwise(0)).over(w),
       "gprs_revenue_2" -> sum(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("gprs_revenue")).otherwise(0)).over(w),
       "voice_revenue_2" -> sum(when((col("dense_rank") === 1 && col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("voice_revenue")).otherwise(0)).over(w),
-
-//      "r1" -> first("res_com_score_1", true).over(w),
-//      "r2" -> first("res_com_score_2", true).over(w),
-//      "v1" -> first("voice_revenue_1", true).over(w),
-//      "v2" -> first("voice_revenue_2", true).over(w),
-//      "g1" -> first("gprs_revenue_1", true).over(w),
-//      "g2" -> first("gprs_revenue_2", true).over(w),
-//      "s1" -> first("sms_revenue_1", true).over(w),
-//      "s2" -> first("sms_revenue_2", true).over(w),
 
       "site__road_village" -> when(last("site_type").over(w).isin(road_village.toSeq: _*), 1).otherwise(0),
       "site__large_city" -> when(last("site_type").over(w).isin(large_city.toSeq: _*), 1).otherwise(0)

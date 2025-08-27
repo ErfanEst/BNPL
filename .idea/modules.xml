@@ -3,7 +3,9 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/root.iml" filepath="$PROJECT_DIR$/.idea/modules/root.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/ETL_v2/root.main.iml" filepath="$PROJECT_DIR$/.idea/modules/ETL_v2/root.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/root.root-build.iml" filepath="$PROJECT_DIR$/.idea/modules/root.root-build.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/ETL_v2/root.test.iml" filepath="$PROJECT_DIR$/.idea/modules/ETL_v2/root.test.iml" />
     </modules>
   </component>
 </project>

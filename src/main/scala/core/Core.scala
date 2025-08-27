@@ -1,6 +1,5 @@
 package core
 
-
 import com.typesafe.config.{Config, ConfigFactory}
 import net.jcazevedo.moultingyaml.DefaultYamlProtocol._
 import net.jcazevedo.moultingyaml._
@@ -72,16 +71,7 @@ object Core {
     }
   }
 
-//  class IndexedColumn(val index: Int, val rangedName: String)
-  //
-//   object IndexedColumn {
-//    def apply(index: Int, name: String): String = name  // ✅ No more prefix
-//
-//    def unapply(column: String): IndexedColumn = {
-//      val seq = column.split('_')
-//      new IndexedColumn(seq.head.toInt, seq.tail.mkString("_"))
-//    }
-//  }
+
 
   case class IndexedColumn(index: Int, name: String)
 
@@ -104,15 +94,10 @@ object Core {
 
     object CDR {
       private val conf = columnsExtractor("cdr")
-//      val IsWeekend = "_is_weekend_"
       val SMSCount: String = conf(4)
       val VoiceCount: String = conf(5)
       val CallDuration: String = conf(6)
       val GprsUsage: String = conf(7)
-//      val IsActiveSMS = "isActiveSMS"
-//      val IsActiveCall = "isActiveCall"
-//      val IsActiveGPRS = "isActiveGPRS"
-
     }
 
     object Package{

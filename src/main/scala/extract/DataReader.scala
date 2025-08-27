@@ -52,15 +52,15 @@ object DataReader {
           "fake_msisdn", "credit_amount", "credit_assigned_date", "loan_id", "loan_amount", "loan_status", "installment_id", "installment_amount", "installment_duedate", "days_delayed", "date_key"
         )
 
-        val basePath = appConfig.getString("Path.Recharge")
+        val basePath = appConfig.getString("basePath")
 
         val previousMonth = index - 1
         val creditPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_CREDIT_MANAGEMENT",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_CREDIT_MANAGEMENT"
+          s"$basePath/$previousMonth/${appConfig.getString("Path.CreditManagement")}",
+          s"$basePath/$index/${appConfig.getString("Path.CreditManagement")}"
         )
 
-        val creditRaw = spark.read.parquet(appConfig.getString("Path.CreditManagement"))
+        val creditRaw = spark.read.parquet(creditPaths:_*)
           .select(neededCols.map(col): _*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -117,11 +117,10 @@ object DataReader {
           .dropDuplicates()
           .persist(StorageLevel.MEMORY_AND_DISK)// ✅ Materialize this for reuse or costly downstream ops
 
-        logger.info(s"${fileType} created — count: " + creditFiltered.take(1).mkString("Array(", ", ", ")"))
-        logger.info(s"${fileType} lineage:\n" + creditFiltered.rdd.toDebugString)
+        logger.info(s"$fileType created — count: " + creditFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"$fileType lineage:\n" + creditFiltered.rdd.toDebugString)
 
         creditFiltered
-
     }
   }
 
@@ -137,15 +136,15 @@ object DataReader {
           "fake_msisdn", "credit_limit", "deposit_amt_n", "outstanding_balance", "unbilled_amount", "last_status", "last_payment_date", "avl_credit_limit", "suspension_flag", "month_id", "date_key"
         )
 
-        val basePath = appConfig.getString("Path.Recharge")
+        val basePath = appConfig.getString("basePath")
 
         val previousMonth = index - 1
-        val poatpaidPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_POST_PAID",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_POST_PAID"
+        val postpaidPaths = Seq(
+          s"$basePath/$previousMonth/${appConfig.getString("Path.PostPaid")}",
+          s"$basePath/$index/${appConfig.getString("Path.PostPaid")}"
         )
 
-        val postPaid = spark.read.parquet(appConfig.getString("Path.PostPaid"))
+        val postPaid = spark.read.parquet(postpaidPaths:_*)
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -163,11 +162,10 @@ object DataReader {
           .dropDuplicates()
           .persist(StorageLevel.MEMORY_AND_DISK)//
 
-        logger.info(s"${fileType} created — count: " + postpaidFiltered.take(1).mkString("Array(", ", ", ")"))
-        logger.info(s"${fileType} lineage:\n" + postpaidFiltered.rdd.toDebugString)
+        logger.info(s"$fileType created — count: " + postpaidFiltered.take(1).mkString("Array(", ", ", ")"))
+        logger.info(s"$fileType lineage:\n" + postpaidFiltered.rdd.toDebugString)
 
         postpaidFiltered
-
     }
   }
 
@@ -182,18 +180,20 @@ object DataReader {
           "fake_msisdn", "sum_travel", "date_key"
         )
 
-        val basePath = appConfig.getString("Path.DomesticTravel")
+        val basePath = appConfig.getString("basePath")
 
         val previousMonth = index - 1
-        val domesticPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_DOMESTICTRAVEL",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_DOMESTICTRAVEL"
+        val domesticTravelPaths = Seq(
+          s"$basePath/$previousMonth/${appConfig.getString("Path.DomesticTravel")}",
+          s"$basePath/$index/${appConfig.getString("Path.DomesticTravel")}"
         )
 
-        val domestic = spark.read.parquet(appConfig.getString("Path.DomesticTravel"))
+        val domestic = spark.read.parquet(domesticTravelPaths:_*)
           .select(neededCols.map(col):_*)
+          .filter(col("fake_msisdn").isNotNull)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
+
 
         val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
         val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
@@ -214,7 +214,6 @@ object DataReader {
     }
   }
 
-
   private val readPackagePurchase: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "package_purchase" =>
@@ -225,14 +224,15 @@ object DataReader {
           "fake_msisdn", "service_type", "cnt", "amount", "source_system_cd", "date_key"
         )
 
-        val basePath = appConfig.getString("Path.PackagePurchase")
+        val basePath = appConfig.getString("basePath")
+
         val previousMonth = index - 1
-        val pkgPurchasePaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_PACKAGE_PURCHASE",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_PACKAGE_PURCHASE"
+        val packagePurchasePaths = Seq(
+          s"$basePath/$previousMonth/${appConfig.getString("Path.PackagePurchase")}",
+          s"$basePath/$index/${appConfig.getString("Path.PackagePurchase")}"
         )
 
-        val packagePurchase = spark.read.parquet(appConfig.getString("Path.PackagePurchase"))
+        val packagePurchase = spark.read.parquet(packagePurchasePaths:_*)
           .select(neededCols.map(col):_*)
           .filter(col("amount") > lit(0) && col("cnt") > lit(0))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -258,7 +258,6 @@ object DataReader {
     }
   }
 
-
   private val readLoanAssign: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "loan_assign" =>
@@ -267,14 +266,15 @@ object DataReader {
 
         val neededCols = Seq("bib_id", "loan_id", "loan_amount", "date_key", "date_timestamp")
 
-        val basePath = appConfig.getString("Path.LOAN_ASSIGN")
+        val basePath = appConfig.getString("basePath")
+
         val previousMonth = index - 1
         val loanAssignPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGN",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGN"
+          s"$basePath/$previousMonth/${appConfig.getString("Path.LoanAssign")}",
+          s"$basePath/$index/${appConfig.getString("Path.LoanAssign")}"
         )
 
-        val loanAssign = spark.read.parquet(appConfig.getString("Path.LoanAssign"))
+        val loanAssign = spark.read.parquet(loanAssignPaths:_*)
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -299,9 +299,9 @@ object DataReader {
         logger.info(s"${fileType} lineage:\n" + loanAssignFiltered.rdd.toDebugString)
 
         loanAssignFiltered
-
     }
   }
+
 
   private val readLoanRec: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
@@ -311,19 +311,19 @@ object DataReader {
 
         val neededColsRec = Seq("bib_id", "loan_id", "loan_amount", "hsdp_recovery", "date_timestamp", "date_key")
 
-        val basePathRec = appConfig.getString("Path.LoanRec")
-        val previousMonthRec = index - 1
+        val basePath = appConfig.getString("basePath")
+
+        val previousMonth = index - 1
         val loanRecPaths = Seq(
-          s"$basePathRec/$previousMonthRec/DEFAULT.BNPL_AAT_LABS_LOAN_REC",
-          s"$basePathRec/$index/DEFAULT.BNPL_AAT_LABS_LOAN_REC"
+          s"$basePath/$previousMonth/${appConfig.getString("Path.LoanRec")}",
+          s"$basePath/$index/${appConfig.getString("Path.LoanRec")}"
         )
 
-        val recFeat = spark.read.parquet(appConfig.getString("Path.LoanRec"))
+        val recFeat = spark.read.parquet(loanRecPaths:_*)
           .select(neededColsRec.map(col):_*)
           .filter(col("bib_id").isNotNull)
           .withColumn("date_l", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date_l")))
-          //          .withColumn("dt_l", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
           .withColumn("dt_sec_l", unix_timestamp(col("date_timestamp"), "yyyyMMdd HH:mm:ss").cast("timestamp"))
           .withColumn("loan_id", col("loan_id").cast("long"))
           .withColumn("loan_amount", col("loan_amount").cast("int"))
@@ -332,19 +332,17 @@ object DataReader {
 
         val neededColsAssign = Seq("bib_id", "loan_id", "loan_amount", "date_key", "date_timestamp")
 
-        val basePathAssign = appConfig.getString("Path.LoanAssign")
         val previousMonthAssign = index - 1
         val loanAssignPaths = Seq(
-          s"$basePathAssign/$previousMonthAssign/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGN",
-          s"$basePathAssign/$index/DEFAULT.BNPL_AAT_LABS_LOAN_ASSIGN"
+          s"$basePath/$previousMonthAssign/${appConfig.getString("Path.LoanAssign")}",
+          s"$basePath/$index/${appConfig.getString("Path.LoanAssign")}"
         )
 
-        val loanAssignDf = spark.read.parquet(appConfig.getString("Path.LoanAssign"))
+        val loanAssignDf = spark.read.parquet(loanAssignPaths:_*)
           .select(neededColsAssign.map(col):_*)
           .filter(col("bib_id").isNotNull)
           .withColumn("date_r", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date_r")))
-          //          .withColumn("dt_r", unix_timestamp(col("date_key").cast("string"), "yyyyMMdd").cast("timestamp"))
           .withColumn("dt_sec_r", unix_timestamp(col("date_timestamp"), "yyyyMMdd HH:mm:ss").cast("timestamp"))
           .withColumn("loan_id", col("loan_id").cast("long"))
           .withColumn("loan_amount", col("loan_amount").cast("int"))
@@ -384,14 +382,15 @@ object DataReader {
 
         val neededCols = Seq(bibID, "contract_type_v", "gender_v", "registration_date_d", "date_of_birth_d", "ability_status", "account_balance", "base_station_cd", "siteid", "date_key")
 
-        val basePath = appConfig.getString("Path.UserInfo")
+        val basePath = appConfig.getString("basePath")
+
         val previousMonth = index - 1
         val userInfoPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_USERINFO",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_USERINFO"
+          s"$basePath/$previousMonth/${appConfig.getString("Path.UserInfo")}",
+          s"$basePath/$index/${appConfig.getString("Path.UserInfo")}"
         )
 
-        val user = spark.read.parquet(appConfig.getString("Path.UserInfo"))
+        val user = spark.read.parquet(userInfoPaths:_*)
           .select(neededCols.map(col):_*)
           .filter(col(bibID).isNotNull)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -425,14 +424,15 @@ object DataReader {
 
         val neededCols = Seq("bib_id", "offering_code", "offer_amount", "offering_name", "activation_date", "deactivation_date", "date_key")
 
-        val basePath = appConfig.getString("Path.Package")
+        val basePath = appConfig.getString("basePath")
+
         val previousMonth = index - 1
-        val userInfoPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_PACKAGE",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_PACKAGE"
+        val packagePaths = Seq(
+          s"$basePath/$previousMonth/${appConfig.getString("Path.Package")}",
+          s"$basePath/$index/${appConfig.getString("Path.Package")}"
         )
 
-        val pkg = spark.read.parquet(appConfig.getString("Path.Package"))
+        val pkg = spark.read.parquet(packagePaths:_*)
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -461,12 +461,15 @@ object DataReader {
   private val readCDR: (String, Int) => DataFrame = { (fileType: String, index: Int) =>
     fileType match {
       case "cdr" =>
+
         val monthIndexOfUDF = udf((date: String) => monthIndexOf(date))
-        val basePath = appConfig.getString("Path.CDR")
+
+        val basePath = appConfig.getString("basePath")
+
         val previousMonth = index - 1
         val cdrPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_CDR",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_CDR"
+          s"$basePath/$previousMonth/${appConfig.getString("Path.CDR")}",
+          s"$basePath/$index/${appConfig.getString("Path.CDR")}"
         )
 
         logger.info(s"Loading CDR paths: $cdrPaths")
@@ -476,7 +479,7 @@ object DataReader {
           "call_duration", "gprs_usage", "voice_session_cost", "date_key"
         )
 
-        val cdr = spark.read.parquet("/home/erfan/Features/CDR/cdr_16845_16846")
+        val cdr = spark.read.parquet(cdrPaths:_*)
           .filter(col(bibID).isNotNull)
           .select(neededCols.map(col): _*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -511,14 +514,15 @@ object DataReader {
 
         val neededCols = Seq("fake_msisdn", "handset_model", "handset_brand", "handset_type", "cnt_of_days", "month_id", "date_key")
 
-        val basePath = appConfig.getString("Path.HandsetPrice")
+        val basePath = appConfig.getString("basePath")
+
         val previousMonth = index - 1
-        val handsetPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_HANDSETPRICE",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_HANDSETPRICE"
+        val handSetPricePaths = Seq(
+          s"$basePath/$previousMonth/${appConfig.getString("Path.HandSetPrice")}",
+          s"$basePath/$index/${appConfig.getString("Path.HandSetPrice")}"
         )
 
-        var handsetPrice = spark.read.parquet(appConfig.getString("Path.HandsetPrice"))
+        var handsetPrice = spark.read.parquet(handSetPricePaths:_*)
           .select(neededCols.map(col):_*)
           .withColumn("handset_brand_array", array("handset_brand"))
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
@@ -562,14 +566,15 @@ object DataReader {
 
         val neededCols = Seq("fake_msisdn", "contract_type", "registration_date", "gender", "age", "modem_model", "flag_sim_tier", "site_type", "res_com_score", "voice_revenue", "gprs_revenue", "sms_revenue", "subscription_revenue", "date_key")
 
-        val basePath = appConfig.getString("Path.Arpu")
+        val basePath = appConfig.getString("basePath")
+
         val previousMonth = index - 1
-        val arpuPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_ARPU",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_ARPU"
+        val arpuPricePaths = Seq(
+          s"$basePath/$previousMonth/${appConfig.getString("Path.Arpu")}",
+          s"$basePath/$index/${appConfig.getString("Path.Arpu")}"
         )
 
-        val arpu = spark.read.parquet(appConfig.getString("Path.Arpu"))
+        val arpu = spark.read.parquet(arpuPricePaths:_*)
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
@@ -605,11 +610,12 @@ object DataReader {
 
         val neededCols = Seq("fake_msisdn", "bank_name", "sms_cnt", "date_key")
 
-        val basePath = appConfig.getString("Path.BankInfo")
+        val basePath = appConfig.getString("basePath")
+
         val previousMonth = index - 1
-        val handsetPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_BANKINFO",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_BANKINFO"
+        val bankInfoPricePaths = Seq(
+          s"$basePath/$previousMonth/${appConfig.getString("Path.BankInfo")}",
+          s"$basePath/$index/${appConfig.getString("Path.BankInfo")}"
         )
 
         val iranianBanks = Seq(
@@ -630,14 +636,15 @@ object DataReader {
           }
         }
 
-        val bankInfo = spark.read.parquet(appConfig.getString("Path.BankInfo"))
+        val bankInfo = spark.read.parquet(bankInfoPricePaths:_*)
           .select(neededCols.map(col):_*)
           .withColumn("date", to_date(col("date_key"), "yyyyMMdd"))
           .withColumn(month_index, monthIndexOfUDF(col("date")))
           .withColumn("matched_banks", extractBankUDF(col("bank_name")))
           .filter(size(col("matched_banks")) > lit(0))
+        val changeOwnershipsPath = s"${appConfig.getString("changeOwnershipPath")}${index - 1}_$index"
 
-        val changeOwnerships = spark.read.parquet("/home/erfan/Desktop/Change_ownership_list/drop_list_16848_16849")
+        val changeOwnerships = spark.read.parquet(changeOwnershipsPath)
           .dropDuplicates("bib_id", "nid_hash")
           .select("bib_id")
           .distinct()
@@ -667,14 +674,15 @@ object DataReader {
           bibID, "recharge_value_amt", "recharge_dt", "origin_host_nm", "account_balance_before_amt", "account_balance_after_amt", "date_key"
         )
 
-        val basePath = appConfig.getString("Path.Recharge")
+        val basePath = appConfig.getString("basePath")
+
         val previousMonth = index - 1
-        val rechPaths = Seq(
-          s"$basePath/$previousMonth/DEFAULT.BNPL_AAT_LABS_RECHARGE",
-          s"$basePath/$index/DEFAULT.BNPL_AAT_LABS_RECHARGE"
+        val rechargePaths = Seq(
+          s"$basePath/$previousMonth/${appConfig.getString("Path.Recharge")}",
+          s"$basePath/$index/${appConfig.getString("Path.Recharge")}"
         )
 
-        val recharge = spark.read.parquet(appConfig.getString("Path.Recharge"))
+        val recharge = spark.read.parquet(rechargePaths:_*)
           .filter(col(bibID).isNotNull)
           .select(neededCols.map(col): _*)
           .withColumn("recharge_dt", to_timestamp(col("recharge_dt"), "yyyyMMdd' 'HH:mm:ss"))
@@ -696,6 +704,9 @@ object DataReader {
         logger.info("rechFiltered created — count: " + rechFiltered.take(1).mkString("Array(", ", ", ")"))
         logger.info("rechFiltered lineage:\n" + rechFiltered.rdd.toDebugString)
 
+        recharge.printSchema()
+
+
         recharge
     }
   }
@@ -704,57 +715,4 @@ object DataReader {
     dataFrame
       .where(col(month_index) > indices.min - range).where(col(month_index) <= indices.max)
   }
-
-  private def calculateCustomerLevelMetrics(arpuMsisdn: DataFrame): Unit = {
-
-    // Step 1: Calculate aggregations
-    val dfCount = arpuMsisdn.groupBy("fake_ic_number", "site_type").count()
-
-    // Step 2: Pivot the DataFrame, creating one column for each `site_type`
-    val dfPivot = dfCount.groupBy("fake_ic_number")
-      .pivot("site_type")
-      .sum("count")
-      .na.fill(0)
-
-    dfPivot.printSchema()
-
-    // Step 3: Rename columns to reflect the site_type (optional but recommended)
-    val distinctSiteTypes = arpuMsisdn.select("site_type")
-      .distinct()
-      .rdd
-      .map(row => row.getString(0))
-      .filter(_ != null)
-      .collect()
-
-    siteTypeMode = dfPivot.select(
-      col("fake_ic_number") +:
-        distinctSiteTypes.map(siteType => col(s"`$siteType`").alias(s"site_type_$siteType")): _*
-    )
-
-    flagSimTierMode = arpuMsisdn
-      .filter(col("flag_sim_tier").isNotNull)
-      .groupBy("fake_ic_number", "flag_sim_tier")
-      .count()
-      .withColumn("rank", row_number().over(Window.partitionBy("fake_ic_number").orderBy(desc("count"))))
-      .filter(col("rank") === 1)
-      .select(
-        col("fake_ic_number"),
-        col("flag_sim_tier").alias("flag_sim_tier_mode").cast(IntegerType)
-      )
-
-    flagSimTierMode.printSchema()
-
-    genderMode = arpuMsisdn
-      .filter(col("gender").isNotNull)
-      .groupBy("fake_ic_number", "gender")
-      .count()
-      .withColumn("rank", row_number().over(Window.partitionBy("fake_ic_number").orderBy(desc("count"))))
-      .filter(col("rank") === 1)
-      .select(
-        col("fake_ic_number"),
-        col("gender").alias("gender").cast(IntegerType)
-      )
-
-  }
-
 }

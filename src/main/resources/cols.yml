@@ -107,8 +107,8 @@ aggregation:
     tables: ["arpu"]
     features:
 
-      age: [1]
-      gender: [1]
+      age: [2]
+      gender: [2]
       prepaid_to_postpaid: [1]
       contract_type: [1]
 
@@ -123,16 +123,16 @@ aggregation:
       site__large_city: [2]
       site__road_village: [2]
 
-      res_com_score_first: [1]
-      voice_revenue_first: [1]
-      gprs_revenue_first: [1]
-      sms_revenue_first: [1]
-      subscription_revenue_first: [1]
+      res_com_score: [1, 2]
+      voice_revenue: [1, 2]
+      gprs_revenue: [1, 2]
+      sms_revenue: [1, 2]
+      subscription_revenue: [1, 2]
 
-      voice_revenue_second: [2]
-      gprs_revenue_second: [2]
-      sms_revenue_second: [2]
-      subscription_revenue_second: [2]
+#      voice_revenue_second: [2]
+#      gprs_revenue_second: [2]
+#      sms_revenue_second: [2]
+#      subscription_revenue_second: [2]
 #      res_com_score_second: [2]
 
 #      res_com_score_change: [2]

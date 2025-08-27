@@ -40,28 +40,28 @@ object FillNullLogics {
     filledDf
   }
 
-//  def main(args: Array[String]): Unit = {
-//    val spark = SparkSession.builder().appName("FillFeatureNulls").getOrCreate()
-//    import spark.implicits._
-//
-//    // Example DataFrame
-//    val df = Seq(
-//      ("user1", null.asInstanceOf[Integer], 5.0),
-//      ("user2", 3, null.asInstanceOf[Double]),
-//      ("user3", null.asInstanceOf[Integer], null.asInstanceOf[Double])
-//    ).toDF("user_id", "sms_count_1", "voice_count_1")
-//
-//    // Load config
-//    val config = ConfigFactory.load()
-//
-//    // Choose which group of features to apply (for example, "cdr_features")
-//    val defaults = loadFeatureDefaults(config, "cdr_features")
-//
-//    // Fill nulls
-//    val filledDf = fillNulls(df, defaults)
-//
-//    filledDf.show(truncate = false)
-//
-//    spark.stop()
-//  }
+  //  def main(args: Array[String]): Unit = {
+  //    val spark = SparkSession.builder().appName("FillFeatureNulls").getOrCreate()
+  //    import spark.implicits._
+  //
+  //    // Example DataFrame
+  //    val df = Seq(
+  //      ("user1", null.asInstanceOf[Integer], 5.0),
+  //      ("user2", 3, null.asInstanceOf[Double]),
+  //      ("user3", null.asInstanceOf[Integer], null.asInstanceOf[Double])
+  //    ).toDF("user_id", "sms_count_1", "voice_count_1")
+  //
+  //    // Load config
+  //    val config = ConfigFactory.load()
+  //
+  //    // Choose which group of features to apply (for example, "cdr_features")
+  //    val defaults = loadFeatureDefaults(config, "cdr_features")
+  //
+  //    // Fill nulls
+  //    val filledDf = fillNulls(df, defaults)
+  //
+  //    filledDf.show(truncate = false)
+  //
+  //    spark.stop()
+  //  }
 }
