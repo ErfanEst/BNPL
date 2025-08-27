@@ -8,6 +8,7 @@ import scala.jdk.CollectionConverters._
 
 object FillNullLogics {
 
+
   def loadFeatureDefaults(config: Config, groupName: String): Map[String, Any] = {
     val groupConfig = config.getConfig(s"featureDefaults.$groupName")
     groupConfig.entrySet().asScala.map { entry =>

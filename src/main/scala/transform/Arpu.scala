@@ -23,12 +23,6 @@ class Arpu(override val uid: String) extends AbstractAggregator {
     case "sms_revenue"              => sum(col("sms_revenue"))
     case "subscription_revenue"     => sum(col("subscription_revenue"))
 
-//    case "res_com_score_second"           => last(col("res_com_score_2")) + last(col("res_com_score_1"))
-//    case "voice_revenue_second"           => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("voice_revenue")).otherwise(0))
-//    case "gprs_revenue_second"            => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("gprs_revenue")).otherwise(0))
-//    case "sms_revenue_second"             => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("sms_revenue")).otherwise(0))
-//    case "subscription_revenue_second"    => sum(when((col("count_dense_rank")  > 1) || (col("dense_rank") === 2 && col("count_dense_rank") === 1), col("subscription_revenue")).otherwise(0))
-
     case "gender"                  => last(when(col("gender") === "F", 1).otherwise(0))
 
     case "prepaid_to_postpaid"     => first(when(col("cnt_contract_type") === 2, 1).otherwise(0))
